@@ -26,6 +26,13 @@ const TIME_SLOTS = Array.from({ length: 20 }, (_, i) => {
   return { timeString, displayString, totalMinutes, hours, minutes };
 });
 
+function getDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function InviteeCalendar({
   participantId,
   guestInfo,
@@ -52,8 +59,8 @@ export function InviteeCalendar({
     { key: 2, label: t('days.tue'), short: t('days.shortTue'), date: weekDates[2], isDisabled: false },
     { key: 3, label: t('days.wed'), short: t('days.shortWed'), date: weekDates[3], isDisabled: false },
     { key: 4, label: t('days.thu'), short: t('days.shortThu'), date: weekDates[4], isDisabled: false },
-    { key: 5, label: t('days.fri'), short: t('days.shortFri'), date: weekDates[5], isDisabled: true },
-    { key: 6, label: t('days.sat'), short: t('days.shortSat'), date: weekDates[6], isDisabled: true },
+    { key: 5, label: t('days.fri'), short: t('days.shortFri'), date: weekDates[5], isDisabled: false },
+    { key: 6, label: t('days.sat'), short: t('days.shortSat'), date: weekDates[6], isDisabled: false },
   ], [t, weekDates]);
 
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set());
@@ -128,21 +135,21 @@ export function InviteeCalendar({
     setIsSubmitting(true);
 
     try {
-      const sundayDate = weekDates[0];
-
       const slotsToInsert = Array.from(selectedSlots).map((slotKey) => {
-        const [dayKeyStr, timeStr] = slotKey.split('-');
-        const dayKey = parseInt(dayKeyStr, 10);
-        const [hoursStr, minutesStr] = timeStr.split(':');
-        const hours = parseInt(hoursStr, 10);
-        const minutes = parseInt(minutesStr, 10);
+        // slotKey format: YYYY-MM-DD_HH:MM
+        const [datePart, timePart] = slotKey.split('_');
+        const [yearStr, monthStr, dayStr] = datePart.split('-');
+        const [hoursStr, minutesStr] = timePart.split(':');
 
-        const startTime = new Date(sundayDate);
-        startTime.setUTCDate(sundayDate.getUTCDate() + dayKey);
-        startTime.setUTCHours(hours, minutes, 0, 0);
+        const startTime = new Date(
+          parseInt(yearStr, 10),
+          parseInt(monthStr, 10) - 1,
+          parseInt(dayStr, 10),
+          parseInt(hoursStr, 10),
+          parseInt(minutesStr, 10)
+        );
 
-        const endTime = new Date(startTime);
-        endTime.setUTCMinutes(startTime.getUTCMinutes() + 30);
+        const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
 
         return {
           participant_id: participantId,
@@ -248,17 +255,12 @@ export function InviteeCalendar({
             {daysConfig.map((day) => (
               <div
                 key={day.key}
-                className={`py-2 px-3 rounded-lg text-center font-mono text-xs transition-colors ${
-                  day.isDisabled
-                    ? 'bg-slate-100 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-600 line-through'
-                    : 'bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-200'
-                }`}
+                className="py-2 px-3 rounded-lg text-center font-mono text-xs transition-colors bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 text-slate-800 dark:text-slate-200"
               >
                 <div className="font-bold text-sm">{day.short}</div>
                 <div className="text-[10px] text-slate-400 dark:text-slate-400 font-normal mt-0.5">
                   {formatDateShort(day.date, language)}
                 </div>
-                {day.isDisabled && <span className="block text-[9px] text-slate-400 dark:text-slate-600 no-underline">Disabled</span>}
               </div>
             ))}
           </div>
@@ -280,17 +282,17 @@ export function InviteeCalendar({
                   if (isDisabled) {
                     return (
                       <div
-                        key={`${day.key}-${slot.timeString}`}
+                        key={`${getDateKey(day.date)}_${slot.timeString}`}
                         data-disabled="true"
                         className="h-8 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-900/80 opacity-40 cursor-not-allowed select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-700 font-mono"
-                        title={isPast ? "Past time slot" : "Disabled day"}
+                        title={isPast ? "Past time slot" : "Disabled"}
                       >
                         —
                       </div>
                     );
                   }
 
-                  const slotKey = `${day.key}-${slot.timeString}`;
+                  const slotKey = `${getDateKey(day.date)}_${slot.timeString}`;
                   const isSelected = selectedSlots.has(slotKey);
 
                   return (
