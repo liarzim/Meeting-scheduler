@@ -1,0 +1,305 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import type { Meeting } from '@/types';
+import { CreateMeetingModal } from '@/components/CreateMeetingModal';
+import { CalendarHeader } from '@/components/CalendarHeader';
+import { CalendarSidebar } from '@/components/CalendarSidebar';
+import { useLanguage } from '@/context/LanguageContext';
+import { getStoredMeetingData, computeMeetingStats } from '@/lib/meetingStore';
+
+export interface ExtendedMeeting extends Meeting {
+  totalParticipants?: number;
+  submittedParticipants?: number;
+  bestMatchPct?: number;
+  bestMatchSlot?: string;
+}
+
+export default function OrganizerDashboard() {
+  const { t, dir } = useLanguage();
+  const [meetings, setMeetings] = useState<ExtendedMeeting[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const refreshMeetingStats = () => {
+    setMeetings((prev) =>
+      prev.map((m) => {
+        const stored = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug);
+        if (stored) {
+          const stats = computeMeetingStats(stored);
+          return { ...m, ...stats };
+        }
+        return m;
+      })
+    );
+  };
+
+  useEffect(() => {
+    async function fetchMeetings() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (!error && data) {
+          const formatted = (data as Meeting[]).map((m) => {
+            const stored = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug);
+            const stats = stored
+              ? computeMeetingStats(stored)
+              : {
+                  totalParticipants: 1,
+                  submittedParticipants: 1,
+                  bestMatchPct: 100,
+                  bestMatchSlot: 'Mon 10:00 AM',
+                };
+            return { ...m, ...stats };
+          });
+          setMeetings(formatted);
+        } else {
+          setMeetings([]);
+        }
+      } catch (err) {
+        console.warn('Supabase query notice:', err);
+        setMeetings([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMeetings();
+  }, []);
+
+  // Listen for real-time live availability submissions from invitees
+  useEffect(() => {
+    const handleAvailabilityUpdate = () => {
+      refreshMeetingStats();
+      showToast('Live update: Invitee submitted availability!');
+    };
+
+    window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+
+    const channel = supabase
+      .channel('realtime:availability_slots')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
+        handleAvailabilityUpdate();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const handleCreateSuccess = (newMeeting: Meeting) => {
+    const extendedNew: ExtendedMeeting = {
+      ...newMeeting,
+      totalParticipants: 1,
+      submittedParticipants: 1,
+      bestMatchPct: 100,
+      bestMatchSlot: 'Mon 09:00 AM',
+    };
+    setMeetings((prev) => [extendedNew, ...prev]);
+    showToast(`Meeting "${newMeeting.title}" created successfully!`);
+  };
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const copyShareLink = (slug: string) => {
+    const url = `${window.location.origin}/${slug}`;
+    navigator.clipboard.writeText(url);
+    showToast(t('detail.linkCopied'));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors" dir={dir}>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed bottom-6 ${dir === 'rtl' ? 'left-6' : 'right-6'} z-50 px-4 py-3 rounded-xl bg-emerald-500 text-white font-medium text-sm shadow-xl shadow-emerald-500/20 animate-bounce`}>
+          ✓ {toastMessage}
+        </div>
+      )}
+
+      {/* Calendar Header Bar */}
+      <CalendarHeader
+        currentDate={selectedDate}
+        onToday={() => setSelectedDate(new Date())}
+        onCreateClick={() => setIsModalOpen(true)}
+      />
+
+      {/* Main Calendar Layout Container */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Calendar Left Sidebar */}
+        <CalendarSidebar
+          selectedDate={selectedDate}
+          onSelectDate={setSelectedDate}
+          onCreateClick={() => setIsModalOpen(true)}
+        />
+
+        {/* Content Area: Meetings List & Dashboard */}
+        <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
+                {t('dashboard.title')}
+              </h1>
+              <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs md:text-sm">
+                {t('dashboard.subtitle')}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-5 py-2.5 rounded-full font-bold text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/30 transition-all"
+            >
+              {t('dashboard.createBtn')}
+            </button>
+          </div>
+
+          {/* Meetings Cards Grid */}
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                {t('dashboard.yourMeetings')} ({meetings.length})
+              </h2>
+              <span className="text-xs text-emerald-600 dark:text-emerald-400 font-mono font-semibold flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block"></span>
+                {t('dashboard.liveSync')}
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="p-12 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center text-slate-500 dark:text-slate-400">
+                Loading meetings...
+              </div>
+            ) : meetings.length === 0 ? (
+              <div className="p-12 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-4 shadow-sm">
+                <div className="text-4xl">📅</div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">No meetings created yet</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mx-auto">
+                  Your workspace is clean. Click below to create your first meeting, set up your schedule, and generate shareable invite links!
+                </p>
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="px-6 py-3 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-md shadow-blue-600/20"
+                >
+                  {t('dashboard.createBtn')}
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {meetings.map((m) => {
+                  const total = m.totalParticipants || 1;
+                  const submitted = m.submittedParticipants || 1;
+                  const responsePct = Math.round((submitted / total) * 100);
+                  const bestPct = m.bestMatchPct || 100;
+
+                  return (
+                    <div
+                      key={m.id}
+                      className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all shadow-sm hover:shadow-md dark:shadow-xl flex flex-col justify-between space-y-6 group relative overflow-hidden"
+                    >
+                      <div className="space-y-4">
+                        {/* Status & ID */}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              m.status === 'OPEN'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                            }`}
+                          >
+                            ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
+                          </span>
+                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
+                        </div>
+
+                        {/* Title & Slug */}
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
+                          {m.title}
+                        </h3>
+
+                        <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 font-mono text-xs text-blue-600 dark:text-blue-400 truncate">
+                          /{m.slug}
+                        </div>
+
+                        {/* Response Rate Stats & Progress Bar */}
+                        <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-500 dark:text-slate-400 font-medium">{t('dashboard.responses')}:</span>
+                            <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                              {submitted} / {total} ({responsePct}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-slate-100 dark:bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800">
+                            <div
+                              className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all"
+                              style={{ width: `${responsePct}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Best Match % & Optimal Slot */}
+                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs">
+                          <div className="space-y-0.5">
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider">
+                              {t('dashboard.bestSlot')}
+                            </div>
+                            <div className="font-semibold text-slate-800 dark:text-slate-200">{m.bestMatchSlot}</div>
+                          </div>
+
+                          <div className="text-right">
+                            <span
+                              className={`inline-flex items-center gap-1 font-mono font-bold text-xs px-2.5 py-1 rounded-lg ${
+                                bestPct >= 90
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                              }`}
+                            >
+                              {bestPct}% {bestPct >= 90 ? '🟢' : '🟠'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Actions */}
+                      <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-2">
+                        <a
+                          href={`/meetings/${m.slug}`}
+                          className="flex-1 py-2 px-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold text-center transition-colors shadow-sm"
+                        >
+                          {t('dashboard.viewHeatmap')}
+                        </a>
+                        <button
+                          onClick={() => copyShareLink(m.slug)}
+                          className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs transition-colors"
+                          title={t('dashboard.copyLink')}
+                        >
+                          📋
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </main>
+      </div>
+
+      {/* Modal */}
+      <CreateMeetingModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleCreateSuccess}
+      />
+    </div>
+  );
+}
