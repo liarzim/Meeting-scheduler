@@ -38,6 +38,13 @@ export function InviteeCalendar({
   const [timezone, setTimezone] = useState('');
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
+  const now = new Date();
+
+  const isPastSlot = (dayDate: Date, totalMinutes: number) => {
+    const slotDate = new Date(dayDate);
+    slotDate.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+    return slotDate.getTime() < now.getTime();
+  };
 
   const daysConfig = useMemo(() => [
     { key: 0, label: t('days.sun'), short: t('days.shortSun'), date: weekDates[0], isDisabled: false },
@@ -267,12 +274,16 @@ export function InviteeCalendar({
 
                 {/* Day Columns */}
                 {daysConfig.map((day) => {
-                  if (day.isDisabled) {
+                  const isPast = isPastSlot(day.date, slot.totalMinutes);
+                  const isDisabled = day.isDisabled || isPast;
+
+                  if (isDisabled) {
                     return (
                       <div
                         key={`${day.key}-${slot.timeString}`}
                         data-disabled="true"
-                        className="h-8 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-900/80 opacity-40 cursor-not-allowed select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-700"
+                        className="h-8 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-900/80 opacity-40 cursor-not-allowed select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-700 font-mono"
+                        title={isPast ? "Past time slot" : "Disabled day"}
                       >
                         —
                       </div>

@@ -48,7 +48,13 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   }, [selectedDate]);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
-  const today = new Date();
+  const now = new Date();
+
+  const isPastSlot = (dayDate: Date, totalMinutes: number) => {
+    const slotDate = new Date(dayDate);
+    slotDate.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+    return slotDate.getTime() < now.getTime();
+  };
 
   const daysConfig = useMemo(() => [
     { key: 0, label: t('days.sun'), short: t('days.shortSun'), date: weekDates[0], isDisabled: false },
@@ -100,47 +106,39 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
     });
 
     return map;
-  }, [requiredParticipants, daysConfig]);
+  }, [daysConfig, requiredParticipants]);
 
-  const isTodayDate = (d: Date) => {
-    return (
-      d.getDate() === today.getDate() &&
-      d.getMonth() === today.getMonth() &&
-      d.getFullYear() === today.getFullYear()
-    );
+  const getHeatmapColor = (matchPct: number) => {
+    if (matchPct === 0) return 'bg-rose-500/10 border-rose-500/30 text-rose-500 dark:text-rose-400';
+    if (matchPct < 50) return 'bg-amber-500/20 border-amber-500/40 text-amber-600 dark:text-amber-300 font-semibold';
+    if (matchPct < 100) return 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-semibold';
+    return 'bg-emerald-500 border-emerald-400 text-white font-bold shadow-md shadow-emerald-500/30';
   };
 
-  const isSelectedDate = (d: Date) => {
+  const isSelectedDate = (date: Date) => {
     if (!selectedDate) return false;
     return (
-      d.getDate() === selectedDate.getDate() &&
-      d.getMonth() === selectedDate.getMonth() &&
-      d.getFullYear() === selectedDate.getFullYear()
+      date.getDate() === selectedDate.getDate() &&
+      date.getMonth() === selectedDate.getMonth() &&
+      date.getFullYear() === selectedDate.getFullYear()
     );
-  };
-
-  const getSlotColorClass = (matchPct: number, totalRequired: number) => {
-    if (totalRequired === 0) return 'bg-slate-100 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/60 text-slate-400 dark:text-slate-600';
-    if (matchPct >= 90) return 'bg-emerald-500 dark:bg-emerald-600/90 border-emerald-400 text-white font-bold shadow-md shadow-emerald-500/20';
-    if (matchPct >= 80) return 'bg-amber-500 dark:bg-amber-600/90 border-amber-400 text-white font-bold shadow-md shadow-amber-500/20';
-    return 'bg-rose-100 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/30 text-rose-700 dark:text-rose-400/60 hover:bg-rose-200 dark:hover:bg-rose-900/40';
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 shadow-xl dark:shadow-2xl space-y-5 transition-colors" dir={dir}>
-      {/* Top Controls & Timezone Bar */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
-        <div className="space-y-0.5">
-          <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">{t('heatmap.title')}</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {t('heatmap.subtitle')} ({requiredParticipants.length})
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-xl dark:shadow-2xl space-y-6 text-slate-900 dark:text-slate-100 transition-colors" dir={dir}>
+      {/* Top Bar Controls */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('heatmap.title')}</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            {t('heatmap.subtitle')} ({requiredParticipants.length} {t('heatmap.requiredCount')})
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-between md:justify-end">
           <TimezoneSelector value={timezone} onChange={setTimezone} />
 
-          {/* Week Navigation Pills */}
+          {/* Week Navigation Controls */}
           <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 text-xs">
             <button
               onClick={() => setWeekOffset((prev) => prev - 1)}
@@ -166,45 +164,54 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
         </div>
       </div>
 
-      {/* Legend Bar */}
-      <div className="flex flex-wrap items-center justify-end gap-4 text-xs bg-slate-50 dark:bg-slate-950/70 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800/80">
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
-          <span className="text-slate-700 dark:text-slate-300 font-medium">{t('heatmap.match90')}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-amber-500 inline-block"></span>
-          <span className="text-slate-700 dark:text-slate-300 font-medium">{t('heatmap.match80')}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-3 h-3 rounded bg-rose-200 dark:bg-rose-950 border border-rose-400 dark:border-rose-800 inline-block"></span>
-          <span className="text-slate-500 dark:text-slate-400 font-medium">{t('heatmap.matchLess80')}</span>
+      {/* Legend & Stats */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 text-xs">
+        <div className="flex items-center gap-4">
+          <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">
+            {t('heatmap.legendLabel')}:
+          </span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-emerald-500" />
+            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legend100')}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/40" />
+            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legendPartial')}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-rose-500/10 border border-rose-500/30" />
+            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legendNone')}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 opacity-50" />
+            <span className="text-slate-400 dark:text-slate-500">Past</span>
+          </div>
         </div>
       </div>
 
-      {/* Google Calendar Style Weekly Grid */}
+      {/* Grid Container */}
       <div className="overflow-x-auto">
-        <div className="min-w-[720px]">
-          {/* Header Row: Days & Date Number */}
-          <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-800 pb-3 mb-2">
-            {/* Left Timezone Label Column */}
-            <div className="text-[11px] font-mono font-semibold text-slate-400 dark:text-slate-500 flex items-center justify-center">
-              GMT+03
+        <div className="min-w-[680px]">
+          {/* Days Header */}
+          <div className="grid grid-cols-8 gap-2 mb-2">
+            <div className="text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 flex items-center justify-center">
+              {t('heatmap.timeCol')}
             </div>
-
-            {/* 7 Day Columns */}
             {daysConfig.map((day) => {
-              const isToday = isTodayDate(day.date);
               const isSelected = isSelectedDate(day.date);
+              const isToday =
+                day.date.getDate() === now.getDate() &&
+                day.date.getMonth() === now.getMonth() &&
+                day.date.getFullYear() === now.getFullYear();
               const dayNumber = day.date.getDate();
 
               return (
                 <div
                   key={day.key}
-                  className={`flex flex-col items-center justify-center text-center p-1.5 rounded-xl transition-all ${
+                  className={`py-2 px-3 rounded-xl text-center font-mono transition-all flex flex-col items-center justify-center border ${
                     isSelected
-                      ? 'bg-blue-50 dark:bg-blue-600/20 border border-blue-300 dark:border-blue-500/50 shadow-md ring-2 ring-blue-500'
-                      : ''
+                      ? 'bg-blue-50 dark:bg-blue-600/20 border-blue-400 dark:border-blue-500/60 shadow-md ring-2 ring-blue-500/30'
+                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800'
                   }`}
                 >
                   <span
@@ -249,14 +256,16 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
                 {/* Day Slot Cells */}
                 {daysConfig.map((day) => {
                   const isSelectedDay = isSelectedDate(day.date);
+                  const isPast = isPastSlot(day.date, slot.totalMinutes);
 
-                  if (day.isDisabled) {
+                  if (day.isDisabled || isPast) {
                     return (
                       <div
                         key={`${day.key}-${slot.timeString}`}
-                        className={`h-9 mx-1 rounded bg-slate-50 dark:bg-slate-950/60 border opacity-40 select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-700 ${
+                        className={`h-9 mx-1 rounded bg-slate-100 dark:bg-slate-950/80 border opacity-40 select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-600 font-mono cursor-not-allowed ${
                           isSelectedDay ? 'border-blue-400 dark:border-blue-500/40' : 'border-slate-200 dark:border-slate-900'
                         }`}
+                        title="Past time slot"
                       >
                         —
                       </div>
@@ -265,24 +274,18 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
 
                   const slotKey = `${day.key}-${slot.timeString}`;
                   const data = slotDataMap[slotKey] || { matchPct: 0, availableCount: 0, totalRequired: 0 };
-                  const colorClass = getSlotColorClass(data.matchPct, data.totalRequired);
+                  const colorClasses = getHeatmapColor(data.matchPct);
 
                   return (
                     <div
                       key={slotKey}
-                      className={`h-9 mx-1 rounded-lg border transition-all flex flex-col items-center justify-center p-0.5 cursor-pointer hover:scale-[1.03] ${colorClass} ${
-                        isSelectedDay ? 'ring-1 ring-blue-500' : ''
+                      className={`h-9 mx-1 rounded border transition-all flex flex-col items-center justify-center font-mono text-[10px] cursor-pointer ${colorClasses} ${
+                        isSelectedDay ? 'ring-1 ring-blue-500/50 shadow-sm' : ''
                       }`}
-                      title={`${day.label} ${slot.displayString}: ${data.availableCount}/${data.totalRequired} Available (${Math.round(data.matchPct)}%)`}
+                      title={`${data.availableCount}/${data.totalRequired} required participants available (${Math.round(data.matchPct)}%)`}
                     >
-                      <span className="text-xs font-bold leading-tight">
-                        {data.totalRequired > 0 ? `${Math.round(data.matchPct)}%` : '—'}
-                      </span>
-                      {data.totalRequired > 0 && (
-                        <span className="text-[10px] opacity-80 leading-none">
-                          {data.availableCount}/{data.totalRequired}
-                        </span>
-                      )}
+                      <span>{Math.round(data.matchPct)}%</span>
+                      <span className="text-[8px] opacity-80">{data.availableCount}/{data.totalRequired}</span>
                     </div>
                   );
                 })}
