@@ -209,13 +209,13 @@ export function InviteeCalendar({
           <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 text-xs">
             <button
               onClick={() => setWeekOffset((prev) => prev - 1)}
-              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors font-medium"
             >
               {t('week.prev')}
             </button>
             <button
               onClick={() => setWeekOffset(0)}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
                 weekOffset === 0 ? 'bg-blue-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -223,7 +223,7 @@ export function InviteeCalendar({
             </button>
             <button
               onClick={() => setWeekOffset((prev) => prev + 1)}
-              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors font-medium"
             >
               {t('week.next')}
             </button>
@@ -233,13 +233,13 @@ export function InviteeCalendar({
 
       {/* Week Notice Banner */}
       {weekOffset === 0 && (
-        <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
-          <span>
-            💡 <strong>Tip:</strong> Past hours today and earlier days this week are grayed out (`—`). Use <strong>Next Week →</strong> to select future slots!
+        <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-3">
+          <span className="font-medium">
+            💡 <strong>Note:</strong> Past hours today are grayed out (`—`). Click any upcoming slot or <strong>Next Week →</strong> to mark your availability in <strong>Vibrant Green (✓ פנוי)</strong>!
           </span>
           <button
             onClick={() => setWeekOffset(1)}
-            className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors shrink-0 ml-2"
+            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shrink-0 shadow-sm"
           >
             Go to Next Week →
           </button>
@@ -248,13 +248,16 @@ export function InviteeCalendar({
 
       {/* Selected Slot Summary Bar */}
       <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs">
-        <div className="font-mono text-blue-600 dark:text-blue-400">
-          {t('cal.selectedLabel')}: <span className="font-bold text-slate-900 dark:text-white">{selectedSlots.size}</span> {t('cal.slotsText')} ({(selectedSlots.size * 0.5).toFixed(1)} {t('cal.hrsText')})
+        <div className="font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+          <span>{t('cal.selectedLabel')}:</span>
+          <span className="font-bold text-slate-900 dark:text-white bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded border border-emerald-500/30">
+            {selectedSlots.size} {t('cal.slotsText')} ({(selectedSlots.size * 0.5).toFixed(1)} {t('cal.hrsText')})
+          </span>
         </div>
         {selectedSlots.size > 0 && (
           <button
             onClick={clearSelections}
-            className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 underline font-medium"
+            className="text-slate-500 dark:text-slate-400 hover:text-rose-500 underline font-medium"
           >
             {t('cal.clearBtn')}
           </button>
@@ -317,17 +320,22 @@ export function InviteeCalendar({
                       key={slotKey}
                       data-slot-key={slotKey}
                       data-disabled="false"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (isDisabled) return;
+                        updateSlotSelection(slotKey, isSelected ? 'deselect' : 'select');
+                      }}
                       onMouseDown={() => handleMouseDown(slotKey, false)}
                       onMouseEnter={() => handleMouseEnter(slotKey, false)}
                       onTouchStart={() => handleTouchStart(slotKey, false)}
                       onTouchMove={handleTouchMove}
                       className={`h-8 rounded-lg border transition-all flex items-center justify-center cursor-pointer font-mono text-[10px] font-bold ${
                         isSelected
-                          ? 'bg-gradient-to-r from-blue-600 to-indigo-600 border-indigo-400 text-white shadow-md shadow-blue-500/30 scale-[1.02]'
-                          : 'bg-slate-50 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 hover:border-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800/50'
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 border-emerald-400 text-white shadow-md shadow-emerald-500/40 scale-[1.03] ring-2 ring-emerald-400/50'
+                          : 'bg-slate-50 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 hover:text-emerald-600'
                       }`}
                     >
-                      {isSelected ? t('cal.freeTag') : ''}
+                      {isSelected ? `✓ ${t('cal.freeTag')}` : ''}
                     </div>
                   );
                 })}
