@@ -17,12 +17,14 @@ interface InviteeCalendarProps {
   onBack: () => void;
 }
 
-const TIME_SLOTS = Array.from({ length: 20 }, (_, i) => {
-  const totalMinutes = 8 * 60 + i * 30;
+// 7:00 AM to 10:00 PM (30 slots of 30 minutes each)
+const TIME_SLOTS = Array.from({ length: 30 }, (_, i) => {
+  const totalMinutes = 7 * 60 + i * 30;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  const displayString = `${hours > 12 ? hours - 12 : hours}:${minutes === 0 ? '00' : minutes} ${hours >= 12 ? 'PM' : 'AM'}`;
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  const displayString = `${displayHours}:${minutes === 0 ? '00' : minutes} ${hours >= 12 ? 'PM' : 'AM'}`;
   return { timeString, displayString, totalMinutes, hours, minutes };
 });
 
@@ -228,6 +230,21 @@ export function InviteeCalendar({
           </div>
         </div>
       </div>
+
+      {/* Week Notice Banner */}
+      {weekOffset === 0 && (
+        <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs text-blue-700 dark:text-blue-300 flex items-center justify-between">
+          <span>
+            💡 <strong>Tip:</strong> Past hours today and earlier days this week are grayed out (`—`). Use <strong>Next Week →</strong> to select future slots!
+          </span>
+          <button
+            onClick={() => setWeekOffset(1)}
+            className="px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors shrink-0 ml-2"
+          >
+            Go to Next Week →
+          </button>
+        </div>
+      )}
 
       {/* Selected Slot Summary Bar */}
       <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs">

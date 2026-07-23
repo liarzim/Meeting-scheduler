@@ -16,12 +16,14 @@ interface MeetingHeatmapProps {
   selectedDate?: Date;
 }
 
-const TIME_SLOTS = Array.from({ length: 20 }, (_, i) => {
-  const totalMinutes = 8 * 60 + i * 30;
+// 7:00 AM to 10:00 PM (30 slots of 30 minutes each)
+const TIME_SLOTS = Array.from({ length: 30 }, (_, i) => {
+  const totalMinutes = 7 * 60 + i * 30;
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  const displayString = `${hours > 12 ? hours - 12 : hours}:${minutes === 0 ? '00' : minutes} ${hours >= 12 ? 'PM' : 'AM'}`;
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  const displayString = `${displayHours}:${minutes === 0 ? '00' : minutes} ${hours >= 12 ? 'PM' : 'AM'}`;
   return { timeString, displayString, totalMinutes, hours, minutes };
 });
 
@@ -62,8 +64,8 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
     { key: 2, label: t('days.tue'), short: t('days.shortTue'), date: weekDates[2], isDisabled: false },
     { key: 3, label: t('days.wed'), short: t('days.shortWed'), date: weekDates[3], isDisabled: false },
     { key: 4, label: t('days.thu'), short: t('days.shortThu'), date: weekDates[4], isDisabled: false },
-    { key: 5, label: t('days.fri'), short: t('days.shortFri'), date: weekDates[5], isDisabled: true },
-    { key: 6, label: t('days.sat'), short: t('days.shortSat'), date: weekDates[6], isDisabled: true },
+    { key: 5, label: t('days.fri'), short: t('days.shortFri'), date: weekDates[5], isDisabled: false },
+    { key: 6, label: t('days.sat'), short: t('days.shortSat'), date: weekDates[6], isDisabled: false },
   ], [t, weekDates]);
 
   const requiredParticipants = useMemo(() => {
