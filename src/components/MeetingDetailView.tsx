@@ -22,16 +22,13 @@ const DEFAULT_HOST_ONLY_PARTICIPANTS: ParticipantWithDetails[] = [
     is_required: true,
     profile: {
       id: 'prof-1',
-      email: 'alex.organizer@techcorp.com',
-      full_name: 'Alex Rivera (Organizer)',
-      company: 'TechCorp',
-      phone_number: '+1 555 0192',
+      email: 'host@company.com',
+      full_name: 'Meeting Host',
+      company: null,
+      phone_number: null,
       is_organizer: true,
     },
-    availability: [
-      { id: 'av-1', participant_id: 'part-1', start_time: '2026-07-26T08:00:00Z', end_time: '2026-07-26T17:00:00Z' },
-      { id: 'av-2', participant_id: 'part-1', start_time: '2026-07-27T08:00:00Z', end_time: '2026-07-27T17:00:00Z' },
-    ],
+    availability: [],
   },
 ];
 

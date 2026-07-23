@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { getGuestCookie, setGuestCookie } from '@/lib/cookies';
+import { saveStoredMeetingData } from '@/lib/meetingStore';
 
 interface CreateMeetingModalProps {
   isOpen: boolean;
@@ -13,11 +15,22 @@ interface CreateMeetingModalProps {
 
 export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeetingModalProps) {
   const { t, dir } = useLanguage();
+  const [organizerName, setOrganizerName] = useState('');
+  const [organizerEmail, setOrganizerEmail] = useState('');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [slug, setSlug] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Auto-fill organizer name/email from cookies on mount
+  useEffect(() => {
+    const saved = getGuestCookie();
+    if (saved) {
+      if (saved.full_name) setOrganizerName(saved.full_name);
+      if (saved.email) setOrganizerEmail(saved.email);
+    }
+  }, []);
 
   // Auto-generate slug when title changes
   useEffect(() => {
@@ -46,11 +59,22 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     setIsSubmitting(true);
     setError(null);
 
+    const hostName = organizerName.trim() || 'Meeting Organizer';
+    const hostEmail = organizerEmail.trim() || 'organizer@company.com';
+
+    // Save cookies
+    setGuestCookie({
+      full_name: hostName,
+      email: hostEmail,
+    });
+
     const newMeetingData = {
       title: title.trim(),
       slug: slug.trim(),
       status: 'OPEN' as const,
     };
+
+    let meetingId = crypto.randomUUID();
 
     try {
       // Insert into Supabase meetings table
@@ -59,38 +83,47 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
         .select()
         .single();
 
-      if (supabaseError) {
-        console.warn('Supabase insert warning, falling back to local object:', supabaseError.message);
-        const fallbackMeeting: Meeting = {
-          id: crypto.randomUUID(),
-          organizer_id: null,
-          title: newMeetingData.title,
-          slug: newMeetingData.slug,
-          status: 'OPEN',
-        };
-        onSuccess(fallbackMeeting);
-      } else if (data) {
-        onSuccess(data as Meeting);
+      if (!supabaseError && data) {
+        meetingId = data.id;
       }
-
-      // Reset form
-      setTitle('');
-      setDescription('');
-      onClose();
-    } catch (err: unknown) {
-      console.error('Failed to create meeting:', err);
-      const fallbackMeeting: Meeting = {
-        id: crypto.randomUUID(),
-        organizer_id: null,
-        title: title.trim(),
-        slug: slug.trim(),
-        status: 'OPEN',
-      };
-      onSuccess(fallbackMeeting);
-      onClose();
-    } finally {
-      setIsSubmitting(false);
+    } catch (err) {
+      console.warn('Supabase insert notice:', err);
     }
+
+    // Initialize Host participant with user's actual name
+    const hostParticipant = {
+      id: `part-${Date.now()}`,
+      meeting_id: meetingId,
+      profile_id: `prof-${Date.now()}`,
+      is_required: true,
+      profile: {
+        id: `prof-${Date.now()}`,
+        email: hostEmail,
+        full_name: `${hostName} (Host)`,
+        company: null,
+        phone_number: null,
+        is_organizer: true,
+      },
+      availability: [],
+    };
+
+    // Save Host participant in meetingStore
+    saveStoredMeetingData(meetingId, [hostParticipant]);
+    saveStoredMeetingData(slug.trim(), [hostParticipant]);
+
+    const createdMeeting: Meeting = {
+      id: meetingId,
+      organizer_id: hostParticipant.profile_id,
+      title: newMeetingData.title,
+      slug: newMeetingData.slug,
+      status: 'OPEN',
+    };
+
+    setIsSubmitting(false);
+    onSuccess(createdMeeting);
+    setTitle('');
+    setDescription('');
+    onClose();
   };
 
   return (
@@ -109,15 +142,46 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && (
             <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-sm">
               {error}
             </div>
           )}
 
+          {/* Organizer Info Fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                {t('invitee.nameLabel')} (Host)
+              </label>
+              <input
+                type="text"
+                required
+                value={organizerName}
+                onChange={(e) => setOrganizerName(e.target.value)}
+                placeholder="Your Name (e.g. Alex)"
+                className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+                {t('invitee.emailLabel')}
+              </label>
+              <input
+                type="email"
+                required
+                value={organizerEmail}
+                onChange={(e) => setOrganizerEmail(e.target.value)}
+                placeholder="your.email@company.com"
+                className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
+          </div>
+
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               {t('modal.titleLabel')}
             </label>
             <input
@@ -131,11 +195,11 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               {t('modal.descLabel')}
             </label>
             <textarea
-              rows={3}
+              rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder={t('modal.descPlaceholder')}
@@ -144,7 +208,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               {t('modal.slugLabel')}
             </label>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-blue-600 dark:text-indigo-400">
@@ -161,7 +225,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
             </p>
           </div>
 
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800/80">
+          <div className="pt-3 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800/80">
             <button
               type="button"
               onClick={onClose}
@@ -171,7 +235,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !title.trim()}
+              disabled={isSubmitting || !title.trim() || !organizerName.trim() || !organizerEmail.trim()}
               className="px-5 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all"
             >
               {isSubmitting ? t('modal.submitting') : t('modal.submit')}
