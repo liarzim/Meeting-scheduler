@@ -32,7 +32,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     }
   }, []);
 
-  // Auto-generate clean Unicode slug when title changes (handles Hebrew, English, numbers)
+  // Auto-generate clean, unique read-only slug when title changes
   useEffect(() => {
     if (!title.trim()) {
       setSlug('');
@@ -46,14 +46,11 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
         .replace(/[^\p{L}\p{N}\s-]/gu, '')
         .replace(/\s+/g, '-');
 
-      if (!clean || clean.replace(/-/g, '').length === 0) {
-        clean = 'meeting';
-      }
-
-      const randomSuffix = Math.random().toString(36).substring(2, 6);
-      setSlug(`${clean}-${randomSuffix}`);
+      const uniqueSuffix = Math.random().toString(36).substring(2, 7);
+      const finalSlug = clean && clean.replace(/-/g, '').length > 0 ? `${clean}-${uniqueSuffix}` : `meeting-${uniqueSuffix}`;
+      setSlug(finalSlug);
     } catch {
-      const fallbackSuffix = Math.random().toString(36).substring(2, 6);
+      const fallbackSuffix = Math.random().toString(36).substring(2, 7);
       setSlug(`meeting-${fallbackSuffix}`);
     }
   }, [title]);
@@ -79,9 +76,12 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
       email: hostEmail,
     });
 
+    const meetingTitleClean = title.trim();
+    const meetingSlugClean = slug.trim();
+
     const newMeetingData = {
-      title: title.trim(),
-      slug: slug.trim(),
+      title: meetingTitleClean,
+      slug: meetingSlugClean,
       status: 'OPEN' as const,
     };
 
@@ -121,15 +121,15 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     const createdMeeting: Meeting = {
       id: meetingId,
       organizer_id: hostParticipant.profile_id,
-      title: newMeetingData.title,
-      slug: newMeetingData.slug,
+      title: meetingTitleClean,
+      slug: meetingSlugClean,
       status: 'OPEN',
     };
 
     // Save full meeting object & Host participant in meetingStore
     saveStoredMeeting(createdMeeting);
     saveStoredMeetingData(meetingId, [hostParticipant]);
-    saveStoredMeetingData(slug.trim(), [hostParticipant]);
+    saveStoredMeetingData(meetingSlugClean, [hostParticipant]);
 
     setIsSubmitting(false);
     onSuccess(createdMeeting);
@@ -219,18 +219,21 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
             />
           </div>
 
+          {/* Unique Read-Only Auto-Generated URL Slug */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
               {t('modal.slugLabel')}
             </label>
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-blue-600 dark:text-indigo-400">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs text-blue-600 dark:text-indigo-400 cursor-not-allowed">
               <span className="text-slate-400 dark:text-slate-500 select-none">/</span>
               <input
                 type="text"
+                readOnly
                 value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                className="bg-transparent text-blue-600 dark:text-indigo-400 focus:outline-none w-full font-mono font-semibold"
+                className="bg-transparent text-blue-600 dark:text-indigo-400 focus:outline-none w-full font-mono font-semibold cursor-not-allowed select-all"
+                title="Unique auto-generated URL"
               />
+              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-800 text-slate-500 font-sans font-bold">Unique</span>
             </div>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               {t('modal.slugHelp')}

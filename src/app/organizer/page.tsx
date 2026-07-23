@@ -7,7 +7,7 @@ import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, computeMeetingStats } from '@/lib/meetingStore';
+import { getStoredMeetingData, computeMeetingStats, getStoredMeetings } from '@/lib/meetingStore';
 
 export interface ExtendedMeeting extends Meeting {
   totalParticipants?: number;
@@ -24,63 +24,53 @@ export default function OrganizerDashboard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  const refreshMeetingStats = () => {
-    setMeetings((prev) =>
-      prev.map((m) => {
-        const stored = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug);
-        if (stored) {
-          const stats = computeMeetingStats(stored);
-          return { ...m, ...stats };
+  const refreshMeetings = async () => {
+    try {
+      const stored = getStoredMeetings();
+      const { data, error } = await supabase
+        .from('meetings')
+        .select('*')
+        .order('id', { ascending: false });
+
+      const map = new Map<string, ExtendedMeeting>();
+
+      if (!error && data && data.length > 0) {
+        (data as Meeting[]).forEach((m) => {
+          const storedSlots = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug) || [];
+          map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
+        });
+      }
+
+      // Merge local meetingStore meetings so user-created meetings never disappear
+      stored.forEach((m) => {
+        if (!map.has(m.id)) {
+          const storedSlots = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug) || [];
+          map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
         }
-        return m;
-      })
-    );
+      });
+
+      setMeetings(Array.from(map.values()));
+    } catch {
+      const stored = getStoredMeetings();
+      setMeetings(stored.map((m) => ({ ...m, ...computeMeetingStats(getStoredMeetingData(m.id) || []) })));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    async function fetchMeetings() {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('meetings')
-          .select('*')
-          .order('id', { ascending: false });
-
-        if (!error && data) {
-          const formatted = (data as Meeting[]).map((m) => {
-            const stored = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug);
-            const stats = stored
-              ? computeMeetingStats(stored)
-              : {
-                  totalParticipants: 1,
-                  submittedParticipants: 1,
-                  bestMatchPct: 100,
-                  bestMatchSlot: 'Mon 10:00 AM',
-                };
-            return { ...m, ...stats };
-          });
-          setMeetings(formatted);
-        } else {
-          setMeetings([]);
-        }
-      } catch (err) {
-        console.warn('Supabase query notice:', err);
-        setMeetings([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchMeetings();
+    refreshMeetings();
   }, []);
 
-  // Listen for real-time live availability submissions from invitees
+  // Listen for real-time live availability submissions & meeting list updates
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
-      refreshMeetingStats();
+      refreshMeetings();
       showToast('Live update: Invitee submitted availability!');
     };
 
     window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+    window.addEventListener('meetings_list_updated', refreshMeetings);
 
     const channel = supabase
       .channel('realtime:availability_slots')
@@ -91,6 +81,7 @@ export default function OrganizerDashboard() {
 
     return () => {
       window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+      window.removeEventListener('meetings_list_updated', refreshMeetings);
       supabase.removeChannel(channel);
     };
   }, []);
@@ -103,7 +94,7 @@ export default function OrganizerDashboard() {
       bestMatchPct: 100,
       bestMatchSlot: 'Mon 09:00 AM',
     };
-    setMeetings((prev) => [extendedNew, ...prev]);
+    setMeetings((prev) => [extendedNew, ...prev.filter((m) => m.id !== newMeeting.id)]);
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
   };
 
