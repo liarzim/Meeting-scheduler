@@ -1,7 +1,38 @@
-import type { AvailabilitySlot } from '@/types';
+import type { AvailabilitySlot, Meeting } from '@/types';
 import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
+const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
+
+export function getStoredMeetings(): Meeting[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(MEETINGS_LIST_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch {
+    // Fallback
+  }
+  return [];
+}
+
+export function saveStoredMeeting(meeting: Meeting) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getStoredMeetings();
+    const updated = [meeting, ...existing.filter((m) => m.id !== meeting.id && m.slug !== meeting.slug)];
+    localStorage.setItem(MEETINGS_LIST_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('meetings_list_updated'));
+  } catch (err) {
+    console.warn('Failed to save meeting to list:', err);
+  }
+}
+
+export function getStoredMeetingBySlug(slug: string): Meeting | null {
+  const meetings = getStoredMeetings();
+  return meetings.find((m) => m.slug === slug || m.id === slug) || null;
+}
 
 export function getStoredMeetingData(meetingId: string): ParticipantWithDetails[] | null {
   if (typeof window === 'undefined') return null;
@@ -43,16 +74,13 @@ export function updateParticipantSlots(
       is_required: true,
       profile: {
         id: 'prof-1',
-        email: 'alex.organizer@techcorp.com',
-        full_name: 'Alex Rivera (Organizer)',
-        company: 'TechCorp',
-        phone_number: '+1 555 0192',
+        email: 'host@company.com',
+        full_name: 'Meeting Host',
+        company: null,
+        phone_number: null,
         is_organizer: true,
       },
-      availability: [
-        { id: 'av-1', participant_id: 'part-1', start_time: '2026-07-26T08:00:00Z', end_time: '2026-07-26T17:00:00Z' },
-        { id: 'av-2', participant_id: 'part-1', start_time: '2026-07-27T08:00:00Z', end_time: '2026-07-27T17:00:00Z' },
-      ],
+      availability: [],
     },
   ];
 

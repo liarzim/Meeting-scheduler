@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { getGuestCookie, setGuestCookie } from '@/lib/cookies';
-import { saveStoredMeetingData } from '@/lib/meetingStore';
+import { saveStoredMeeting, saveStoredMeetingData } from '@/lib/meetingStore';
 
 interface CreateMeetingModalProps {
   isOpen: boolean;
@@ -32,19 +32,24 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     }
   }, []);
 
-  // Auto-generate slug when title changes
+  // Auto-generate slug when title changes with Hebrew & Unicode support
   useEffect(() => {
-    if (!title) {
+    if (!title.trim()) {
       setSlug('');
       return;
     }
-    const cleanTitle = title
-      .toLowerCase()
+    let clean = title
       .trim()
-      .replace(/[^a-z0-9\s-]/g, '')
+      .toLowerCase()
+      .replace(/[^\w\s\u0590-\u05FF-]/g, '')
       .replace(/\s+/g, '-');
+
+    if (!clean || clean.replace(/-/g, '').length === 0) {
+      clean = 'meeting';
+    }
+
     const randomSuffix = Math.random().toString(36).substring(2, 6);
-    setSlug(`${cleanTitle}-${randomSuffix}`);
+    setSlug(`${clean}-${randomSuffix}`);
   }, [title]);
 
   if (!isOpen) return null;
@@ -107,10 +112,6 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
       availability: [],
     };
 
-    // Save Host participant in meetingStore
-    saveStoredMeetingData(meetingId, [hostParticipant]);
-    saveStoredMeetingData(slug.trim(), [hostParticipant]);
-
     const createdMeeting: Meeting = {
       id: meetingId,
       organizer_id: hostParticipant.profile_id,
@@ -118,6 +119,11 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
       slug: newMeetingData.slug,
       status: 'OPEN',
     };
+
+    // Save full meeting object & Host participant in meetingStore
+    saveStoredMeeting(createdMeeting);
+    saveStoredMeetingData(meetingId, [hostParticipant]);
+    saveStoredMeetingData(slug.trim(), [hostParticipant]);
 
     setIsSubmitting(false);
     onSuccess(createdMeeting);
@@ -160,7 +166,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
                 required
                 value={organizerName}
                 onChange={(e) => setOrganizerName(e.target.value)}
-                placeholder="Your Name (e.g. Alex)"
+                placeholder="Your Name"
                 className="w-full px-3.5 py-2 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
             </div>

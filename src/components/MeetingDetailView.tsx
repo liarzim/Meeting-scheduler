@@ -7,7 +7,7 @@ import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, saveStoredMeetingData } from '@/lib/meetingStore';
+import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug } from '@/lib/meetingStore';
 
 interface MeetingDetailViewProps {
   initialMeeting: Meeting;
@@ -48,6 +48,14 @@ export function MeetingDetailView({
   useEffect(() => {
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
   }, [meeting.slug]);
+
+  // Load client-stored meeting title and details in useEffect
+  useEffect(() => {
+    const storedMeeting = getStoredMeetingBySlug(initialMeeting.slug) || getStoredMeetingBySlug(initialMeeting.id);
+    if (storedMeeting && storedMeeting.title) {
+      setMeeting(storedMeeting);
+    }
+  }, [initialMeeting.slug, initialMeeting.id]);
 
   // Load client-stored participants in useEffect after initial hydration
   useEffect(() => {
