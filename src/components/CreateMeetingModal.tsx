@@ -32,24 +32,30 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     }
   }, []);
 
-  // Auto-generate slug when title changes with Hebrew & Unicode support
+  // Auto-generate clean Unicode slug when title changes (handles Hebrew, English, numbers)
   useEffect(() => {
     if (!title.trim()) {
       setSlug('');
       return;
     }
-    let clean = title
-      .trim()
-      .toLowerCase()
-      .replace(/[^\w\s\u0590-\u05FF-]/g, '')
-      .replace(/\s+/g, '-');
 
-    if (!clean || clean.replace(/-/g, '').length === 0) {
-      clean = 'meeting';
+    try {
+      let clean = title
+        .trim()
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s-]/gu, '')
+        .replace(/\s+/g, '-');
+
+      if (!clean || clean.replace(/-/g, '').length === 0) {
+        clean = 'meeting';
+      }
+
+      const randomSuffix = Math.random().toString(36).substring(2, 6);
+      setSlug(`${clean}-${randomSuffix}`);
+    } catch {
+      const fallbackSuffix = Math.random().toString(36).substring(2, 6);
+      setSlug(`meeting-${fallbackSuffix}`);
     }
-
-    const randomSuffix = Math.random().toString(36).substring(2, 6);
-    setSlug(`${clean}-${randomSuffix}`);
   }, [title]);
 
   if (!isOpen) return null;

@@ -10,9 +10,9 @@ interface PageProps {
 
 export default async function MeetingDetailPage({ params }: PageProps) {
   const resolvedParams = await params;
-  const slug = resolvedParams.slug;
+  const rawSlug = resolvedParams.slug;
+  const slug = decodeURIComponent(rawSlug);
 
-  // Construct initial meeting structure from slug
   const formattedTitle = slug
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (l) => l.toUpperCase());
@@ -20,7 +20,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
   const meeting: Meeting = {
     id: `m-${slug}`,
     organizer_id: 'prof-1',
-    title: formattedTitle || 'Q3 Product Architecture & Scaling Review',
+    title: formattedTitle || 'Meeting',
     slug: slug,
     status: 'OPEN',
   };
