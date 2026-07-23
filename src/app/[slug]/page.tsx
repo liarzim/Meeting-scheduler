@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, use } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { GuestIdentificationForm } from '@/components/GuestIdentificationForm';
@@ -88,12 +89,12 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
           <p className="text-sm text-slate-400">
             The meeting link <code className="text-indigo-300 font-mono">/{slug}</code> does not exist or has expired.
           </p>
-          <a
+          <Link
             href="/"
             className="inline-block px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold"
           >
             {t('nav.home')}
-          </a>
+          </Link>
         </div>
       </main>
     );

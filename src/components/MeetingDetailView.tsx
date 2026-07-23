@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import type { Meeting } from '@/types';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
@@ -197,12 +198,12 @@ export function MeetingDetailView({
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
           {/* Back Nav Link */}
           <div>
-            <a
+            <Link
               href="/organizer"
               className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline transition-colors"
             >
               <span>{dir === 'rtl' ? '→' : '←'}</span> {t('nav.backToDashboard')}
-            </a>
+            </Link>
           </div>
 
           {/* Meeting Top Header */}
