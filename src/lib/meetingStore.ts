@@ -1,11 +1,7 @@
-import type { AvailabilitySlot, MeetingParticipant, Profile } from '@/types';
+import type { AvailabilitySlot } from '@/types';
 import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
-
-export interface StoredMeetingData {
-  participants: ParticipantWithDetails[];
-}
 
 export function getStoredMeetingData(meetingId: string): ParticipantWithDetails[] | null {
   if (typeof window === 'undefined') return null;
@@ -56,23 +52,6 @@ export function updateParticipantSlots(
       availability: [
         { id: 'av-1', participant_id: 'part-1', start_time: '2026-07-26T08:00:00Z', end_time: '2026-07-26T17:00:00Z' },
         { id: 'av-2', participant_id: 'part-1', start_time: '2026-07-27T08:00:00Z', end_time: '2026-07-27T17:00:00Z' },
-      ],
-    },
-    {
-      id: 'part-2',
-      meeting_id: meetingId,
-      profile_id: 'prof-2',
-      is_required: true,
-      profile: {
-        id: 'prof-2',
-        email: 'sarah.lead@techcorp.com',
-        full_name: 'Sarah Chen (Lead Architect)',
-        company: 'TechCorp',
-        phone_number: '+1 555 0193',
-        is_organizer: false,
-      },
-      availability: [
-        { id: 'av-5', participant_id: 'part-2', start_time: '2026-07-26T09:00:00Z', end_time: '2026-07-26T15:00:00Z' },
       ],
     },
   ];

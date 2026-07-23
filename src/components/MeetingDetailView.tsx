@@ -14,7 +14,7 @@ interface MeetingDetailViewProps {
   initialParticipants?: ParticipantWithDetails[];
 }
 
-const MOCK_PARTICIPANTS: ParticipantWithDetails[] = [
+const DEFAULT_HOST_ONLY_PARTICIPANTS: ParticipantWithDetails[] = [
   {
     id: 'part-1',
     meeting_id: 'm-1',
@@ -31,66 +31,13 @@ const MOCK_PARTICIPANTS: ParticipantWithDetails[] = [
     availability: [
       { id: 'av-1', participant_id: 'part-1', start_time: '2026-07-26T08:00:00Z', end_time: '2026-07-26T17:00:00Z' },
       { id: 'av-2', participant_id: 'part-1', start_time: '2026-07-27T08:00:00Z', end_time: '2026-07-27T17:00:00Z' },
-      { id: 'av-3', participant_id: 'part-1', start_time: '2026-07-28T08:00:00Z', end_time: '2026-07-28T17:00:00Z' },
-      { id: 'av-4', participant_id: 'part-1', start_time: '2026-07-29T08:00:00Z', end_time: '2026-07-29T17:00:00Z' },
     ],
-  },
-  {
-    id: 'part-2',
-    meeting_id: 'm-1',
-    profile_id: 'prof-2',
-    is_required: true,
-    profile: {
-      id: 'prof-2',
-      email: 'sarah.lead@techcorp.com',
-      full_name: 'Sarah Chen (Lead Architect)',
-      company: 'TechCorp',
-      phone_number: '+1 555 0193',
-      is_organizer: false,
-    },
-    availability: [
-      { id: 'av-5', participant_id: 'part-2', start_time: '2026-07-26T09:00:00Z', end_time: '2026-07-26T15:00:00Z' },
-      { id: 'av-6', participant_id: 'part-2', start_time: '2026-07-27T10:00:00Z', end_time: '2026-07-27T16:00:00Z' },
-    ],
-  },
-  {
-    id: 'part-3',
-    meeting_id: 'm-1',
-    profile_id: 'prof-3',
-    is_required: true,
-    profile: {
-      id: 'prof-3',
-      email: 'david.cto@partner.io',
-      full_name: 'David Kim (VP Eng)',
-      company: 'Partner.io',
-      phone_number: '+1 555 0194',
-      is_organizer: false,
-    },
-    availability: [
-      { id: 'av-7', participant_id: 'part-3', start_time: '2026-07-26T10:00:00Z', end_time: '2026-07-26T14:00:00Z' },
-      { id: 'av-8', participant_id: 'part-3', start_time: '2026-07-27T10:00:00Z', end_time: '2026-07-27T12:00:00Z' },
-    ],
-  },
-  {
-    id: 'part-4',
-    meeting_id: 'm-1',
-    profile_id: 'prof-4',
-    is_required: false,
-    profile: {
-      id: 'prof-4',
-      email: 'elena.product@techcorp.com',
-      full_name: 'Elena Rostova (Product Lead)',
-      company: 'TechCorp',
-      phone_number: '+1 555 0195',
-      is_organizer: false,
-    },
-    availability: [],
   },
 ];
 
 export function MeetingDetailView({
   initialMeeting,
-  initialParticipants = MOCK_PARTICIPANTS,
+  initialParticipants = DEFAULT_HOST_ONLY_PARTICIPANTS,
 }: MeetingDetailViewProps) {
   const { t, dir } = useLanguage();
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting);
