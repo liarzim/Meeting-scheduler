@@ -81,7 +81,7 @@ export function updateParticipantSlots(
   meetingKey: string,
   participantId: string,
   guestProfile: { full_name: string; email: string; company?: string; phone_number?: string; role?: string },
-  slots: { start_time: string; end_time: string }[]
+  slots: { start_time: string; end_time: string; slot_key?: string }[]
 ) {
   if (!meetingKey) return [];
   const normKey = normalizeKey(meetingKey);
@@ -110,6 +110,7 @@ export function updateParticipantSlots(
   const formattedSlots: AvailabilitySlot[] = slots.map((s, idx) => ({
     id: `av-${Date.now()}-${idx}`,
     participant_id: participantId,
+    slot_key: s.slot_key,
     start_time: s.start_time,
     end_time: s.end_time,
   }));
@@ -153,7 +154,7 @@ export function updateParticipantSlots(
 export function computeMeetingStats(participants: ParticipantWithDetails[]) {
   const total = participants.length;
   const submitted = participants.filter((p) => p.availability && p.availability.length > 0).length;
-  const required = participants.filter((p) => p.is_required);
+  const required = participants.filter((p) => p.is_required !== false);
   
   const matchPct = required.length > 0 ? Math.round((submitted / total) * 100) : 0;
   return {

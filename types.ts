@@ -27,6 +27,7 @@ export interface MeetingParticipant {
 export interface AvailabilitySlot {
   id: string;
   participant_id: string | null;
+  slot_key?: string;
   start_time: string;
   end_time: string;
 }
@@ -124,12 +125,14 @@ export interface Database {
         Insert: {
           id?: string;
           participant_id?: string | null;
+          slot_key?: string;
           start_time: string;
           end_time: string;
         };
         Update: {
           id?: string;
           participant_id?: string | null;
+          slot_key?: string;
           start_time?: string;
           end_time?: string;
         };

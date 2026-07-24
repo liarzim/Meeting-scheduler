@@ -175,6 +175,7 @@ export function InviteeCalendar({
 
         return {
           participant_id: participantId,
+          slot_key: slotKey,
           start_time: startTime.toISOString(),
           end_time: endTime.toISOString(),
         };
