@@ -32,6 +32,32 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   const [weekOffset, setWeekOffset] = useState(0);
   const [timezone, setTimezone] = useState('');
 
+  // Auto-detect week offset if participants submitted availability for future weeks
+  useEffect(() => {
+    if (!participants || participants.length === 0) return;
+    for (const p of participants) {
+      if (p.availability && p.availability.length > 0) {
+        const firstSlot = new Date(p.availability[0].start_time);
+        const now = new Date();
+        const currentSunday = new Date(now);
+        currentSunday.setDate(now.getDate() - now.getDay());
+        currentSunday.setHours(0, 0, 0, 0);
+
+        const targetSunday = new Date(firstSlot);
+        targetSunday.setDate(firstSlot.getDate() - firstSlot.getDay());
+        targetSunday.setHours(0, 0, 0, 0);
+
+        const diffDays = Math.round((targetSunday.getTime() - currentSunday.getTime()) / (1000 * 60 * 60 * 24));
+        const calculatedOffset = Math.round(diffDays / 7);
+
+        if (calculatedOffset > 0) {
+          setWeekOffset(calculatedOffset);
+        }
+        break;
+      }
+    }
+  }, [participants]);
+
   useEffect(() => {
     if (!selectedDate) return;
     const now = new Date();
@@ -91,8 +117,6 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
     const totalRequired = requiredParticipants.length;
 
     daysConfig.forEach((day) => {
-      if (day.isDisabled) return;
-
       TIME_SLOTS.forEach((slot) => {
         const slotKey = `${day.key}-${slot.timeString}`;
 
@@ -107,7 +131,13 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
             const start = new Date(av.start_time);
             const end = new Date(av.end_time);
 
-            if (start.getDay() !== day.key) return false;
+            // Match by exact date (Year, Month, Day)
+            const isSameDay =
+              start.getFullYear() === day.date.getFullYear() &&
+              start.getMonth() === day.date.getMonth() &&
+              start.getDate() === day.date.getDate();
+
+            if (!isSameDay) return false;
 
             const startMinutes = start.getHours() * 60 + start.getMinutes();
             const endMinutes = end.getHours() * 60 + end.getMinutes();
@@ -158,13 +188,13 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
           <div className="inline-flex items-center rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-1 text-xs">
             <button
               onClick={() => setWeekOffset((prev) => prev - 1)}
-              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors font-medium"
             >
               {t('week.prev')}
             </button>
             <button
               onClick={() => setWeekOffset(0)}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
+              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
                 weekOffset === 0 ? 'bg-blue-600 text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
@@ -172,7 +202,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
             </button>
             <button
               onClick={() => setWeekOffset((prev) => prev + 1)}
-              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+              className="px-3 py-1 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors font-medium"
             >
               {t('week.next')}
             </button>
