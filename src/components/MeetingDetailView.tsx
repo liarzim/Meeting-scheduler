@@ -6,8 +6,10 @@ import type { Meeting } from '@/types';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
+import { InviteeCalendar } from './InviteeCalendar';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug } from '@/lib/meetingStore';
+import type { GuestInfo } from '@/lib/cookies';
 
 interface MeetingDetailViewProps {
   initialMeeting: Meeting;
@@ -23,7 +25,7 @@ const DEFAULT_HOST_ONLY_PARTICIPANTS: ParticipantWithDetails[] = [
     profile: {
       id: 'prof-1',
       email: 'host@company.com',
-      full_name: 'Meeting Host',
+      full_name: 'Meeting Host (Organizer)',
       company: null,
       phone_number: null,
       is_organizer: true,
@@ -38,8 +40,8 @@ export function MeetingDetailView({
 }: MeetingDetailViewProps) {
   const { t, dir } = useLanguage();
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting);
-  // Match server-side initial render to avoid hydration mismatch
   const [participants, setParticipants] = useState<ParticipantWithDetails[]>(initialParticipants);
+  const [isEditingHostAvailability, setIsEditingHostAvailability] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [shareableUrl, setShareableUrl] = useState('');
@@ -49,7 +51,7 @@ export function MeetingDetailView({
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
   }, [meeting.slug]);
 
-  // Load client-stored meeting title and details in useEffect
+  // Load client-stored meeting title and details
   useEffect(() => {
     const storedMeeting = getStoredMeetingBySlug(initialMeeting.slug) || getStoredMeetingBySlug(initialMeeting.id);
     if (storedMeeting && storedMeeting.title) {
@@ -57,7 +59,7 @@ export function MeetingDetailView({
     }
   }, [initialMeeting.slug, initialMeeting.id]);
 
-  // Load client-stored participants in useEffect after initial hydration
+  // Load client-stored participants in useEffect
   useEffect(() => {
     const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
     if (stored && stored.length > 0) {
@@ -65,11 +67,11 @@ export function MeetingDetailView({
     }
   }, [meeting.id, meeting.slug]);
 
-  // Listen for real-time live availability submissions from invitees
+  // Listen for real-time live availability submissions
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
       const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
-      if (stored) {
+      if (stored && stored.length > 0) {
         setParticipants(stored);
       }
     };
@@ -128,6 +130,12 @@ export function MeetingDetailView({
     }));
   };
 
+  const hostInfo: GuestInfo = {
+    full_name: 'Organizer (Host)',
+    email: 'host@company.com',
+    role: 'Organizer',
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors" dir={dir}>
       {/* Calendar Header Bar */}
@@ -136,9 +144,9 @@ export function MeetingDetailView({
         onToday={() => setSelectedDate(new Date())}
       />
 
-      {/* Main Layout with Sidebar & Full-Width Heatmap */}
+      {/* Main Layout with Sidebar & Heatmap */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Calendar Sidebar containing Mini Month & Participants List */}
+        {/* Calendar Sidebar */}
         <CalendarSidebar
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
@@ -149,53 +157,89 @@ export function MeetingDetailView({
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
           {/* Back Nav Link */}
-          <div>
+          <div className="flex items-center justify-between">
             <Link
               href="/organizer"
               className="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline transition-colors"
             >
               <span>{dir === 'rtl' ? '→' : '←'}</span> {t('nav.backToDashboard')}
             </Link>
+
+            {/* Organizer Edit Availability Button */}
+            <button
+              onClick={() => setIsEditingHostAvailability((prev) => !prev)}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+            >
+              <span>📅</span>
+              {isEditingHostAvailability ? 'View Heatmap' : 'Enter / Edit My Availability (Host)'}
+            </button>
           </div>
 
-          {/* Meeting Top Header */}
-          <header className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-md dark:shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 transition-colors">
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <span
-                  onClick={toggleMeetingStatus}
-                  className={`cursor-pointer px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
-                    meeting.status === 'OPEN'
-                      ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                      : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
-                  }`}
-                  title="Click to toggle status"
-                >
-                  ● {t('detail.statusLabel')}: {meeting.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
-                </span>
-                <span className="text-xs font-mono text-slate-500">{t('detail.slugLabel')}: {meeting.slug}</span>
+          {/* Organizer Interactive Availability Calendar */}
+          {isEditingHostAvailability ? (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                👋 <strong>Organizer Mode:</strong> Select your available time slots below. Your availability will be merged onto the meeting heatmap instantly!
               </div>
-              <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                {meeting.title}
-              </h1>
-            </div>
 
-            {/* Shareable Link Box */}
-            <div className="w-full md:w-auto bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-              <div suppressHydrationWarning className="flex-1 font-mono text-xs text-blue-600 dark:text-blue-400 truncate max-w-md px-2">
-                {shareableUrl}
-              </div>
-              <button
-                onClick={handleCopyLink}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-600/20"
-              >
-                {copied ? t('detail.linkCopied') : t('detail.copyLinkBtn')}
-              </button>
+              <InviteeCalendar
+                meetingId={meeting.id}
+                meetingSlug={meeting.slug}
+                participantId="part-1"
+                guestInfo={hostInfo}
+                meetingTitle={meeting.title}
+                onSubmitted={() => {
+                  setIsEditingHostAvailability(false);
+                  const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
+                  if (stored && stored.length > 0) {
+                    setParticipants(stored);
+                  }
+                }}
+                onBack={() => setIsEditingHostAvailability(false)}
+              />
             </div>
-          </header>
+          ) : (
+            <>
+              {/* Meeting Top Header */}
+              <header className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-md dark:shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 transition-colors">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span
+                      onClick={toggleMeetingStatus}
+                      className={`cursor-pointer px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
+                        meeting.status === 'OPEN'
+                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                          : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
+                      }`}
+                      title="Click to toggle status"
+                    >
+                      ● {t('detail.statusLabel')}: {meeting.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
+                    </span>
+                    <span className="text-xs font-mono text-slate-500">{t('detail.slugLabel')}: {meeting.slug}</span>
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                    {meeting.title}
+                  </h1>
+                </div>
 
-          {/* Full Width Weekly Calendar Heatmap */}
-          <MeetingHeatmap participants={participants} selectedDate={selectedDate} />
+                {/* Shareable Link Box */}
+                <div className="w-full md:w-auto bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div suppressHydrationWarning className="flex-1 font-mono text-xs text-blue-600 dark:text-blue-400 truncate max-w-md px-2">
+                    {shareableUrl}
+                  </div>
+                  <button
+                    onClick={handleCopyLink}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-colors flex items-center justify-center gap-2 shadow-md shadow-blue-600/20"
+                  >
+                    {copied ? t('detail.linkCopied') : t('detail.copyLinkBtn')}
+                  </button>
+                </div>
+              </header>
+
+              {/* Full Width Weekly Calendar Heatmap */}
+              <MeetingHeatmap participants={participants} selectedDate={selectedDate} />
+            </>
+          )}
         </main>
       </div>
     </div>

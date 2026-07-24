@@ -10,6 +10,8 @@ import { getWeekDates, formatDateShort } from '@/lib/timezone';
 import { updateParticipantSlots } from '@/lib/meetingStore';
 
 interface InviteeCalendarProps {
+  meetingId?: string;
+  meetingSlug?: string;
   participantId: string;
   guestInfo: GuestInfo;
   meetingTitle: string;
@@ -36,6 +38,8 @@ function getDateKey(date: Date): string {
 }
 
 export function InviteeCalendar({
+  meetingId,
+  meetingSlug,
   participantId,
   guestInfo,
   meetingTitle,
@@ -176,7 +180,14 @@ export function InviteeCalendar({
         };
       });
 
-      // Save to meetingStore & broadcast real-time availability event
+      // Save to meetingStore for specific meeting ID & meeting slug
+      if (meetingId) {
+        updateParticipantSlots(meetingId, participantId, guestInfo, slotsToInsert);
+      }
+      if (meetingSlug) {
+        updateParticipantSlots(meetingSlug, participantId, guestInfo, slotsToInsert);
+      }
+      // Fallbacks
       updateParticipantSlots('m-1', participantId, guestInfo, slotsToInsert);
       updateParticipantSlots('q3-product-architecture-scaling-review', participantId, guestInfo, slotsToInsert);
 
