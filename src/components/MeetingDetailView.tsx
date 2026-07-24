@@ -19,27 +19,9 @@ interface MeetingDetailViewProps {
   initialParticipants?: ParticipantWithDetails[];
 }
 
-const DEFAULT_HOST_ONLY_PARTICIPANTS: ParticipantWithDetails[] = [
-  {
-    id: 'part-1',
-    meeting_id: 'm-1',
-    profile_id: 'prof-1',
-    is_required: true,
-    profile: {
-      id: 'prof-1',
-      email: 'host@company.com',
-      full_name: 'Meeting Host (Organizer)',
-      company: null,
-      phone_number: null,
-      is_organizer: true,
-    },
-    availability: [],
-  },
-];
-
 export function MeetingDetailView({
   initialMeeting,
-  initialParticipants = DEFAULT_HOST_ONLY_PARTICIPANTS,
+  initialParticipants = [],
 }: MeetingDetailViewProps) {
   const router = useRouter();
   const { t, dir, language } = useLanguage();
@@ -76,7 +58,7 @@ export function MeetingDetailView({
         .single();
 
       if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-        const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+        let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
           id: mp.id,
           meeting_id: mp.meeting_id,
           profile_id: mp.profile_id,
@@ -84,6 +66,11 @@ export function MeetingDetailView({
           profile: mp.profiles,
           availability: mp.availability_slots || [],
         }));
+
+        // Clean up legacy dummy fallback host if an actual host exists
+        if (dbParticipants.length > 1 && dbParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
+          dbParticipants = dbParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+        }
 
         setParticipants(dbParticipants);
         saveStoredMeetingData(meeting.id, dbParticipants);
@@ -95,11 +82,15 @@ export function MeetingDetailView({
     }
 
     // 2. Fallback to local meetingStore
-    const stored =
+    let stored =
       getStoredMeetingData(meeting.id) ||
       getStoredMeetingData(meeting.slug) ||
       getStoredMeetingData(decodeURIComponent(meeting.slug));
+
     if (stored && stored.length > 0) {
+      if (stored.length > 1 && stored.some((p) => p.profile?.email !== 'host@company.com')) {
+        stored = stored.filter((p) => p.profile?.email !== 'host@company.com');
+      }
       setParticipants(stored);
     }
   };
@@ -208,9 +199,11 @@ export function MeetingDetailView({
     }));
   };
 
+  const hostParticipant = participants.find((p) => p.profile?.is_organizer) || participants[0];
+
   const hostInfo: GuestInfo = {
-    full_name: 'Organizer (Host)',
-    email: 'host@company.com',
+    full_name: hostParticipant?.profile?.full_name || 'Organizer (Host)',
+    email: hostParticipant?.profile?.email || 'organizer@company.com',
     role: 'Organizer',
   };
 
@@ -273,7 +266,7 @@ export function MeetingDetailView({
               <InviteeCalendar
                 meetingId={meeting.id}
                 meetingSlug={meeting.slug}
-                participantId="part-1"
+                participantId={hostParticipant?.id || 'part-1'}
                 guestInfo={hostInfo}
                 meetingTitle={meeting.title}
                 onSubmitted={() => {

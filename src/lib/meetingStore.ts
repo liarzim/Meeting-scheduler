@@ -95,7 +95,12 @@ export function getStoredMeetingData(key: string): ParticipantWithDetails[] | nu
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}_${norm}`);
     if (raw) {
-      return JSON.parse(raw);
+      let parsed: ParticipantWithDetails[] = JSON.parse(raw);
+      // Clean up legacy dummy fallback host if an actual host exists
+      if (parsed.length > 1 && parsed.some((p) => p.profile?.email !== 'host@company.com')) {
+        parsed = parsed.filter((p) => p.profile?.email !== 'host@company.com');
+      }
+      return parsed;
     }
   } catch {
     // Fallback
@@ -107,7 +112,13 @@ export function saveStoredMeetingData(key: string, participants: ParticipantWith
   if (typeof window === 'undefined' || !key) return;
   const norm = normalizeKey(key);
   try {
-    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(participants));
+    // Clean up legacy dummy fallback host before saving
+    let cleanParticipants = participants;
+    if (cleanParticipants.length > 1 && cleanParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
+      cleanParticipants = cleanParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+    }
+
+    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(cleanParticipants));
 
     // Dispatch local custom event
     window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
@@ -135,26 +146,15 @@ export function updateParticipantSlots(
   if (!meetingKey) return [];
   const normKey = normalizeKey(meetingKey);
 
-  const existing = getStoredMeetingData(normKey) || [
-    {
-      id: 'part-1',
-      meeting_id: normKey,
-      profile_id: 'prof-1',
-      is_required: true,
-      profile: {
-        id: 'prof-1',
-        email: 'host@company.com',
-        full_name: 'Meeting Host',
-        company: null,
-        phone_number: null,
-        is_organizer: true,
-      },
-      availability: [],
-    },
-  ];
+  let existing = getStoredMeetingData(normKey) || [];
+
+  // Filter out legacy dummy fallback participant "host@company.com" if actual organizer exists
+  if (existing.some((p) => p.profile?.email !== 'host@company.com')) {
+    existing = existing.filter((p) => p.profile?.email !== 'host@company.com');
+  }
 
   // Find or create participant by ID or Email
-  let pIndex = existing.findIndex((p) => p.id === participantId || p.profile?.email === guestProfile.email);
+  let pIndex = existing.findIndex((p) => p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === guestProfile.email.toLowerCase()));
 
   const formattedSlots: AvailabilitySlot[] = slots.map((s, idx) => ({
     id: `av-${Date.now()}-${idx}`,
@@ -201,9 +201,14 @@ export function updateParticipantSlots(
 }
 
 export function computeMeetingStats(participants: ParticipantWithDetails[]) {
-  const total = participants.length;
-  const submitted = participants.filter((p) => p.availability && p.availability.length > 0).length;
-  const required = participants.filter((p) => p.is_required !== false);
+  // Filter out legacy dummy fallback host if actual organizer exists
+  let clean = participants;
+  if (clean.length > 1 && clean.some((p) => p.profile?.email !== 'host@company.com')) {
+    clean = clean.filter((p) => p.profile?.email !== 'host@company.com');
+  }
+
+  const total = clean.length;
+  const submitted = clean.filter((p) => p.availability && p.availability.length > 0).length;
   
   const matchPct = total > 0 ? Math.round((submitted / total) * 100) : 0;
 
@@ -211,9 +216,9 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]) {
   let bestSlotText = 'Pending Responses';
   let bestCount = 0;
 
-  if (participants.length > 0) {
+  if (clean.length > 0) {
     const slotCounts: Record<string, number> = {};
-    participants.forEach((p) => {
+    clean.forEach((p) => {
       if (p.availability) {
         p.availability.forEach((av) => {
           const key = av.slot_key || av.start_time;
