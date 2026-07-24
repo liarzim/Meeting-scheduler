@@ -27,6 +27,13 @@ const TIME_SLOTS = Array.from({ length: 30 }, (_, i) => {
   return { timeString, displayString, totalMinutes, hours, minutes };
 });
 
+function getDateKey(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function MeetingHeatmap({ participants, selectedDate = new Date() }: MeetingHeatmapProps) {
   const { t, dir } = useLanguage();
   const [weekOffset, setWeekOffset] = useState(0);
@@ -37,23 +44,35 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
     if (!participants || participants.length === 0) return;
     for (const p of participants) {
       if (p.availability && p.availability.length > 0) {
-        const firstSlot = new Date(p.availability[0].start_time);
-        const now = new Date();
-        const currentSunday = new Date(now);
-        currentSunday.setDate(now.getDate() - now.getDay());
-        currentSunday.setHours(0, 0, 0, 0);
+        for (const av of p.availability) {
+          let slotDate: Date | null = null;
+          if (av.slot_key && av.slot_key.includes('_')) {
+            const [datePart] = av.slot_key.split('_');
+            const [y, m, d] = datePart.split('-');
+            slotDate = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+          } else if (av.start_time) {
+            slotDate = new Date(av.start_time);
+          }
 
-        const targetSunday = new Date(firstSlot);
-        targetSunday.setDate(firstSlot.getDate() - firstSlot.getDay());
-        targetSunday.setHours(0, 0, 0, 0);
+          if (slotDate) {
+            const now = new Date();
+            const currentSunday = new Date(now);
+            currentSunday.setDate(now.getDate() - now.getDay());
+            currentSunday.setHours(0, 0, 0, 0);
 
-        const diffDays = Math.round((targetSunday.getTime() - currentSunday.getTime()) / (1000 * 60 * 60 * 24));
-        const calculatedOffset = Math.round(diffDays / 7);
+            const targetSunday = new Date(slotDate);
+            targetSunday.setDate(slotDate.getDate() - slotDate.getDay());
+            targetSunday.setHours(0, 0, 0, 0);
 
-        if (calculatedOffset > 0) {
-          setWeekOffset(calculatedOffset);
+            const diffDays = Math.round((targetSunday.getTime() - currentSunday.getTime()) / (1000 * 60 * 60 * 24));
+            const calculatedOffset = Math.round(diffDays / 7);
+
+            if (calculatedOffset > 0) {
+              setWeekOffset(calculatedOffset);
+              return;
+            }
+          }
         }
-        break;
       }
     }
   }, [participants]);
@@ -109,7 +128,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   ], [t, weekDates]);
 
   const requiredParticipants = useMemo(() => {
-    return participants.filter((p) => p.is_required);
+    return participants.filter((p) => p.is_required !== false);
   }, [participants]);
 
   const slotDataMap = useMemo(() => {
@@ -119,6 +138,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
     daysConfig.forEach((day) => {
       TIME_SLOTS.forEach((slot) => {
         const slotKey = `${day.key}-${slot.timeString}`;
+        const targetSlotKey = `${getDateKey(day.date)}_${slot.timeString}`;
 
         if (totalRequired === 0) {
           map[slotKey] = { matchPct: 0, availableCount: 0, totalRequired: 0 };
@@ -127,11 +147,15 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
 
         const availableCount = requiredParticipants.filter((participant) => {
           if (!participant.availability || participant.availability.length === 0) return false;
-          return participant.availability.some((av) => {
-            const start = new Date(av.start_time);
-            const end = new Date(av.end_time);
 
-            // Match by exact date (Year, Month, Day)
+          return participant.availability.some((av) => {
+            // 1. Direct slot_key match (100% deterministic, zero timezone offset bugs!)
+            if (av.slot_key && av.slot_key === targetSlotKey) {
+              return true;
+            }
+
+            // 2. Local date & time match fallback
+            const start = new Date(av.start_time);
             const isSameDay =
               start.getFullYear() === day.date.getFullYear() &&
               start.getMonth() === day.date.getMonth() &&
@@ -140,9 +164,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
             if (!isSameDay) return false;
 
             const startMinutes = start.getHours() * 60 + start.getMinutes();
-            const endMinutes = end.getHours() * 60 + end.getMinutes();
-
-            return slot.totalMinutes >= startMinutes && slot.totalMinutes + 30 <= endMinutes;
+            return slot.totalMinutes >= startMinutes && slot.totalMinutes < startMinutes + 30;
           });
         }).length;
 
