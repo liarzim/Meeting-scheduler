@@ -9,6 +9,7 @@ import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
+import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
@@ -45,6 +46,7 @@ export function MeetingDetailView({
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting);
   const [participants, setParticipants] = useState<ParticipantWithDetails[]>(initialParticipants);
   const [isEditingHostAvailability, setIsEditingHostAvailability] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [shareableUrl, setShareableUrl] = useState('');
@@ -149,10 +151,7 @@ export function MeetingDetailView({
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const handleDeleteMeeting = async () => {
-    const confirmMsg = language === 'he' ? `האם אתה בטוח שברצונך למחוק את הפגישה "${meeting.title}"?` : `Are you sure you want to delete meeting "${meeting.title}"?`;
-    if (!window.confirm(confirmMsg)) return;
-
+  const confirmDeleteMeeting = async () => {
     try {
       await (supabase.from('meetings') as any).delete().or(`id.eq.${meeting.id},slug.eq.${meeting.slug}`);
     } catch (err) {
@@ -161,6 +160,7 @@ export function MeetingDetailView({
 
     deleteStoredMeeting(meeting.id);
     deleteStoredMeeting(meeting.slug);
+    setIsDeleteModalOpen(false);
     router.push('/organizer');
   };
 
@@ -245,7 +245,7 @@ export function MeetingDetailView({
 
             <div className="flex items-center gap-3">
               <button
-                onClick={handleDeleteMeeting}
+                onClick={() => setIsDeleteModalOpen(true)}
                 className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800/60 transition-colors flex items-center gap-1.5"
               >
                 <span>🗑</span>
@@ -327,6 +327,14 @@ export function MeetingDetailView({
           )}
         </main>
       </div>
+
+      {/* Delete Confirmation Modal (Green Yes, Red No) */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        meetingTitle={meeting.title}
+        onConfirm={confirmDeleteMeeting}
+        onCancel={() => setIsDeleteModalOpen(false)}
+      />
     </div>
   );
 }

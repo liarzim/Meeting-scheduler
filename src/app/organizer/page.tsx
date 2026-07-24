@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
+import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
@@ -17,12 +18,15 @@ export interface ExtendedMeeting extends Meeting {
 }
 
 export default function OrganizerDashboard() {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const [meetings, setMeetings] = useState<ExtendedMeeting[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Delete modal state
+  const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string } | null>(null);
 
   const refreshMeetings = async () => {
     try {
@@ -126,9 +130,9 @@ export default function OrganizerDashboard() {
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
   };
 
-  const handleDeleteMeeting = async (meetingId: string, title: string) => {
-    const confirmMessage = language === 'he' ? `האם אתה בטוח שברצונך למחוק את הפגישה "${title}"?` : `Are you sure you want to delete meeting "${title}"?`;
-    if (!window.confirm(confirmMessage)) return;
+  const confirmDeleteMeeting = async () => {
+    if (!meetingToDelete) return;
+    const { id: meetingId, title } = meetingToDelete;
 
     try {
       // 1. Delete from Supabase DB
@@ -142,6 +146,7 @@ export default function OrganizerDashboard() {
 
     // 3. UI update
     setMeetings((prev) => prev.filter((m) => m.id !== meetingId && m.slug !== meetingId));
+    setMeetingToDelete(null);
     showToast(language === 'he' ? `הפגישה "${title}" נמחקה בהצלחה` : `Meeting "${title}" deleted successfully`);
   };
 
@@ -245,7 +250,7 @@ export default function OrganizerDashboard() {
                       className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all shadow-sm hover:shadow-md dark:shadow-xl flex flex-col justify-between space-y-6 group relative overflow-hidden"
                     >
                       <div className="space-y-4">
-                        {/* Status, ID & Delete Button */}
+                        {/* Status, ID & Delete Icon */}
                         <div className="flex items-center justify-between">
                           <span
                             className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -260,7 +265,10 @@ export default function OrganizerDashboard() {
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
                             <button
-                              onClick={() => handleDeleteMeeting(m.id, m.title)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMeetingToDelete({ id: m.id, title: m.title });
+                              }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                               title="Delete meeting"
                             >
@@ -342,11 +350,19 @@ export default function OrganizerDashboard() {
         </main>
       </div>
 
-      {/* Modal */}
+      {/* Create Meeting Modal */}
       <CreateMeetingModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={handleCreateSuccess}
+      />
+
+      {/* Delete Confirmation Modal (Green Yes, Red No) */}
+      <DeleteConfirmationModal
+        isOpen={!!meetingToDelete}
+        meetingTitle={meetingToDelete?.title || ''}
+        onConfirm={confirmDeleteMeeting}
+        onCancel={() => setMeetingToDelete(null)}
       />
     </div>
   );
