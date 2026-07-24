@@ -47,7 +47,20 @@ export function MeetingDetailView({
   }, [initialMeeting.slug, initialMeeting.id]);
 
   const loadData = async () => {
-    // 1. Attempt fetching live data from Supabase DB
+    let finalParticipants: ParticipantWithDetails[] = [];
+
+    // 1. Fetch from local meetingStore first
+    const stored =
+      getStoredMeetingData(meeting.id) ||
+      getStoredMeetingData(meeting.slug) ||
+      getStoredMeetingData(decodeURIComponent(meeting.slug)) ||
+      [];
+
+    if (stored && stored.length > 0) {
+      finalParticipants = stored;
+    }
+
+    // 2. Fetch live data from Supabase DB and merge
     try {
       const normSlug = normalizeKey(meeting.slug);
       const normId = normalizeKey(meeting.id);
@@ -67,31 +80,45 @@ export function MeetingDetailView({
           availability: mp.availability_slots || [],
         }));
 
-        // Clean up legacy dummy fallback host if an actual host exists
-        if (dbParticipants.length > 1 && dbParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
-          dbParticipants = dbParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+        // Merge local availability into dbParticipants if DB slots are empty
+        if (finalParticipants.length > 0) {
+          dbParticipants = dbParticipants.map((dbP) => {
+            const localP = finalParticipants.find(
+              (lp) =>
+                lp.id === dbP.id ||
+                (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
+            );
+            if (localP && localP.availability && localP.availability.length > 0) {
+              if (!dbP.availability || dbP.availability.length === 0) {
+                return { ...dbP, availability: localP.availability };
+              }
+            }
+            return dbP;
+          });
+
+          // Include local participants that DB doesn't have yet
+          finalParticipants.forEach((lp) => {
+            if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
+              dbParticipants.push(lp);
+            }
+          });
         }
 
-        setParticipants(dbParticipants);
-        saveStoredMeetingData(meeting.id, dbParticipants);
-        saveStoredMeetingData(meeting.slug, dbParticipants);
-        return;
+        finalParticipants = dbParticipants;
       }
     } catch (err) {
       console.warn('Supabase DB fetch fallback:', err);
     }
 
-    // 2. Fallback to local meetingStore
-    let stored =
-      getStoredMeetingData(meeting.id) ||
-      getStoredMeetingData(meeting.slug) ||
-      getStoredMeetingData(decodeURIComponent(meeting.slug));
+    // Clean up legacy dummy fallback host if an actual host exists
+    if (finalParticipants.length > 1 && finalParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
+      finalParticipants = finalParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+    }
 
-    if (stored && stored.length > 0) {
-      if (stored.length > 1 && stored.some((p) => p.profile?.email !== 'host@company.com')) {
-        stored = stored.filter((p) => p.profile?.email !== 'host@company.com');
-      }
-      setParticipants(stored);
+    if (finalParticipants.length > 0) {
+      setParticipants(finalParticipants);
+      saveStoredMeetingData(meeting.id, finalParticipants);
+      saveStoredMeetingData(meeting.slug, finalParticipants);
     }
   };
 
