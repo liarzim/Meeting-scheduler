@@ -359,12 +359,6 @@ export function InviteeCalendar({
                       key={slotKey}
                       data-slot-key={slotKey}
                       data-disabled="false"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (isDisabled) return;
-                        updateSlotSelection(slotKey, isSelected ? 'deselect' : 'select');
-                      }}
                       onMouseDown={() => handleMouseDown(slotKey, false)}
                       onMouseEnter={() => handleMouseEnter(slotKey, false)}
                       onTouchStart={() => handleTouchStart(slotKey, false)}
