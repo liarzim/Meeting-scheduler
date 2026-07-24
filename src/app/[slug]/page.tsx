@@ -8,6 +8,7 @@ import { GuestIdentificationForm } from '@/components/GuestIdentificationForm';
 import { InviteeCalendar } from '@/components/InviteeCalendar';
 import type { GuestInfo } from '@/lib/cookies';
 import { useLanguage } from '@/context/LanguageContext';
+import { getStoredMeetingBySlug, getStoredMeetings } from '@/lib/meetingStore';
 
 interface PublicMeetingPageProps {
   params: Promise<{
@@ -18,7 +19,8 @@ interface PublicMeetingPageProps {
 export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
   const { t, dir } = useLanguage();
   const resolvedParams = use(params);
-  const slug = resolvedParams.slug;
+  const rawSlug = resolvedParams.slug;
+  const decodedSlug = decodeURIComponent(rawSlug);
 
   const [step, setStep] = useState<'REGISTER' | 'CALENDAR' | 'CONFIRMATION'>('REGISTER');
   const [meeting, setMeeting] = useState<Meeting | null>(null);
@@ -30,24 +32,37 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
     async function loadMeeting() {
       try {
         setLoading(true);
+
+        // Check local stored meetings first (preserves exact Hebrew titles like קיזוזים)
+        const localMeeting =
+          getStoredMeetingBySlug(decodedSlug) ||
+          getStoredMeetingBySlug(rawSlug) ||
+          getStoredMeetings().find((m) => m.slug === rawSlug || m.slug === decodedSlug);
+
+        if (localMeeting) {
+          setMeeting(localMeeting);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('meetings')
           .select('*')
-          .eq('slug', slug)
+          .or(`slug.eq.${rawSlug},slug.eq.${decodedSlug}`)
           .single();
 
         if (!error && data) {
           setMeeting(data as Meeting);
         } else {
-          const formattedTitle = slug
-            .replace(/-/g, ' ')
-            .replace(/\b\w/g, (l) => l.toUpperCase());
+          // Fallback title formatting: decode URI and strip random suffix (e.g. -3b9qc)
+          const formattedTitle = decodedSlug
+            .replace(/-[a-z0-9]{5}$/i, '')
+            .replace(/-/g, ' ');
 
           setMeeting({
-            id: `m-${slug}`,
+            id: `m-${rawSlug}`,
             organizer_id: 'prof-1',
             title: formattedTitle || 'Architecture Sync & Planning',
-            slug: slug,
+            slug: rawSlug,
             status: 'OPEN',
           });
         }
@@ -58,7 +73,7 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
       }
     }
     loadMeeting();
-  }, [slug]);
+  }, [rawSlug, decodedSlug]);
 
   const handleGuestComplete = (partId: string, _profId: string, info: GuestInfo) => {
     setParticipantId(partId);
@@ -87,7 +102,7 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 max-w-md text-center space-y-4">
           <h2 className="text-2xl font-bold text-rose-400">Meeting Not Found</h2>
           <p className="text-sm text-slate-400">
-            The meeting link <code className="text-indigo-300 font-mono">/{slug}</code> does not exist or has expired.
+            The meeting link <code className="text-indigo-300 font-mono">/{rawSlug}</code> does not exist or has expired.
           </p>
           <Link
             href="/"

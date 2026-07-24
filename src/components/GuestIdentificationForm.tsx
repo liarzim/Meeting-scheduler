@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { getGuestCookie, setGuestCookie, type GuestInfo } from '@/lib/cookies';
+import { setGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/context/LanguageContext';
 
@@ -22,18 +22,44 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
 
-  // Auto-fill form from browser cookies on mount
-  useEffect(() => {
-    const saved = getGuestCookie();
-    if (saved) {
-      if (saved.full_name) setFullName(saved.full_name);
-      if (saved.email) setEmail(saved.email);
-      if (saved.company) setCompany(saved.company);
-      if (saved.phone_number) setPhone(saved.phone_number);
-      if (saved.role) setRole(saved.role);
-      setAutoFilled(true);
+  // Clean title for display (decode URI and strip random suffix)
+  const cleanTitle = useMemo(() => {
+    try {
+      const decoded = decodeURIComponent(meetingTitle);
+      return decoded.replace(/-[a-z0-9]{5}$/i, '').replace(/-/g, ' ');
+    } catch {
+      return meetingTitle;
     }
-  }, []);
+  }, [meetingTitle]);
+
+  // Check if participant previously entered for THIS meeting before
+  useEffect(() => {
+    const meetingStorageKey = `guest_submitted_${meetingId}`;
+    const savedForMeeting = typeof window !== 'undefined' ? localStorage.getItem(meetingStorageKey) : null;
+
+    if (savedForMeeting) {
+      try {
+        const parsed = JSON.parse(savedForMeeting) as GuestInfo;
+        if (parsed.full_name) setFullName(parsed.full_name);
+        if (parsed.email) setEmail(parsed.email);
+        if (parsed.company) setCompany(parsed.company);
+        if (parsed.phone_number) setPhone(parsed.phone_number);
+        if (parsed.role) setRole(parsed.role);
+        setAutoFilled(true);
+        return;
+      } catch {
+        // Fallthrough if parse fails
+      }
+    }
+
+    // First time visitor for this meeting: Keep form COMPLETELY BLANK
+    setFullName('');
+    setEmail('');
+    setCompany('');
+    setPhone('');
+    setRole('');
+    setAutoFilled(false);
+  }, [meetingId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +75,10 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
       role: role.trim(),
     };
 
+    // Save locally under per-meeting key so returning visitors are recognized
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`guest_submitted_${meetingId}`, JSON.stringify(guestInfo));
+    }
     setGuestCookie(guestInfo);
 
     let profileId = `prof-${Date.now()}`;
@@ -105,15 +135,19 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
       <div className="text-center space-y-2">
         <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-          {t('invitee.joinTitle')} &quot;{meetingTitle}&quot;
+          {t('invitee.joinTitle')} &quot;{cleanTitle}&quot;
         </h2>
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {t('invitee.regSubtitle')}
         </p>
 
-        {autoFilled && (
+        {autoFilled ? (
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium mt-2">
-            {t('invitee.autofillNotice')}
+            ✓ Restored your saved details for this meeting (Confirm or update below)
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-medium mt-2">
+            👋 First time joining this meeting? Enter your details below!
           </div>
         )}
       </div>
