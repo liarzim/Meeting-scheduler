@@ -7,7 +7,7 @@ import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, computeMeetingStats, getStoredMeetings } from '@/lib/meetingStore';
+import { getStoredMeetingData, computeMeetingStats, getStoredMeetings, deleteStoredMeeting } from '@/lib/meetingStore';
 
 export interface ExtendedMeeting extends Meeting {
   totalParticipants?: number;
@@ -84,7 +84,6 @@ export default function OrganizerDashboard() {
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
       refreshMeetings();
-      showToast('Live sync: Availability updated!');
     };
 
     window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
@@ -125,6 +124,25 @@ export default function OrganizerDashboard() {
     };
     setMeetings((prev) => [extendedNew, ...prev.filter((m) => m.id !== newMeeting.id)]);
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
+  };
+
+  const handleDeleteMeeting = async (meetingId: string, title: string) => {
+    const confirmMessage = language === 'he' ? `האם אתה בטוח שברצונך למחוק את הפגישה "${title}"?` : `Are you sure you want to delete meeting "${title}"?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    try {
+      // 1. Delete from Supabase DB
+      await (supabase.from('meetings') as any).delete().or(`id.eq.${meetingId},slug.eq.${meetingId}`);
+    } catch (err) {
+      console.warn('Supabase DB delete warning:', err);
+    }
+
+    // 2. Delete from local meetingStore
+    deleteStoredMeeting(meetingId);
+
+    // 3. UI update
+    setMeetings((prev) => prev.filter((m) => m.id !== meetingId && m.slug !== meetingId));
+    showToast(language === 'he' ? `הפגישה "${title}" נמחקה בהצלחה` : `Meeting "${title}" deleted successfully`);
   };
 
   const showToast = (msg: string) => {
@@ -227,7 +245,7 @@ export default function OrganizerDashboard() {
                       className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all shadow-sm hover:shadow-md dark:shadow-xl flex flex-col justify-between space-y-6 group relative overflow-hidden"
                     >
                       <div className="space-y-4">
-                        {/* Status & ID */}
+                        {/* Status, ID & Delete Button */}
                         <div className="flex items-center justify-between">
                           <span
                             className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
@@ -238,7 +256,17 @@ export default function OrganizerDashboard() {
                           >
                             ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
                           </span>
-                          <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
+                            <button
+                              onClick={() => handleDeleteMeeting(m.id, m.title)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                              title="Delete meeting"
+                            >
+                              🗑
+                            </button>
+                          </div>
                         </div>
 
                         {/* Title & Slug */}

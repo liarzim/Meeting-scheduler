@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
@@ -9,7 +10,7 @@ import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey } from '@/lib/meetingStore';
+import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
 
 interface MeetingDetailViewProps {
@@ -39,7 +40,8 @@ export function MeetingDetailView({
   initialMeeting,
   initialParticipants = DEFAULT_HOST_ONLY_PARTICIPANTS,
 }: MeetingDetailViewProps) {
-  const { t, dir } = useLanguage();
+  const router = useRouter();
+  const { t, dir, language } = useLanguage();
   const [meeting, setMeeting] = useState<Meeting>(initialMeeting);
   const [participants, setParticipants] = useState<ParticipantWithDetails[]>(initialParticipants);
   const [isEditingHostAvailability, setIsEditingHostAvailability] = useState(false);
@@ -147,6 +149,21 @@ export function MeetingDetailView({
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleDeleteMeeting = async () => {
+    const confirmMsg = language === 'he' ? `האם אתה בטוח שברצונך למחוק את הפגישה "${meeting.title}"?` : `Are you sure you want to delete meeting "${meeting.title}"?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await (supabase.from('meetings') as any).delete().or(`id.eq.${meeting.id},slug.eq.${meeting.slug}`);
+    } catch (err) {
+      console.warn('Supabase delete error:', err);
+    }
+
+    deleteStoredMeeting(meeting.id);
+    deleteStoredMeeting(meeting.slug);
+    router.push('/organizer');
+  };
+
   const toggleRequired = (participantId: string) => {
     setParticipants((prev) => {
       const updated = prev.map((p) =>
@@ -217,7 +234,7 @@ export function MeetingDetailView({
         />
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
-          {/* Back Nav Link */}
+          {/* Back Nav Link & Delete Button */}
           <div className="flex items-center justify-between">
             <Link
               href="/organizer"
@@ -226,14 +243,24 @@ export function MeetingDetailView({
               <span>{dir === 'rtl' ? '→' : '←'}</span> {t('nav.backToDashboard')}
             </Link>
 
-            {/* Organizer Edit Availability Button */}
-            <button
-              onClick={() => setIsEditingHostAvailability((prev) => !prev)}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
-            >
-              <span>📅</span>
-              {isEditingHostAvailability ? 'View Heatmap' : 'Enter / Edit My Availability (Host)'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDeleteMeeting}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800/60 transition-colors flex items-center gap-1.5"
+              >
+                <span>🗑</span>
+                <span>{language === 'he' ? 'מחק פגישה' : 'Delete Meeting'}</span>
+              </button>
+
+              {/* Organizer Edit Availability Button */}
+              <button
+                onClick={() => setIsEditingHostAvailability((prev) => !prev)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+              >
+                <span>📅</span>
+                {isEditingHostAvailability ? 'View Heatmap' : 'Enter / Edit My Availability (Host)'}
+              </button>
+            </div>
           </div>
 
           {/* Organizer Interactive Availability Calendar */}

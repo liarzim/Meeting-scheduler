@@ -53,6 +53,36 @@ export function saveStoredMeeting(meeting: Meeting) {
   }
 }
 
+export function deleteStoredMeeting(key: string) {
+  if (typeof window === 'undefined' || !key) return;
+  const norm = normalizeKey(key);
+  try {
+    const existing = getStoredMeetings();
+    const matched = existing.find((m) => normalizeKey(m.id) === norm || normalizeKey(m.slug) === norm);
+    const updated = existing.filter((m) => normalizeKey(m.id) !== norm && normalizeKey(m.slug) !== norm);
+    localStorage.setItem(MEETINGS_LIST_KEY, JSON.stringify(updated));
+
+    // Remove stored participant data for this meeting key
+    localStorage.removeItem(`${STORAGE_KEY}_${norm}`);
+    if (matched) {
+      localStorage.removeItem(`${STORAGE_KEY}_${normalizeKey(matched.id)}`);
+      localStorage.removeItem(`${STORAGE_KEY}_${normalizeKey(matched.slug)}`);
+    }
+
+    // Dispatch events
+    window.dispatchEvent(new CustomEvent('meetings_list_updated'));
+    window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
+
+    if ('BroadcastChannel' in window) {
+      const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
+      bc.postMessage({ type: 'MEETINGS_LIST_UPDATED' });
+      bc.close();
+    }
+  } catch (err) {
+    console.warn('Failed to delete meeting from localStorage:', err);
+  }
+}
+
 export function getStoredMeetingBySlug(slug: string): Meeting | null {
   const norm = normalizeKey(slug);
   const meetings = getStoredMeetings();
