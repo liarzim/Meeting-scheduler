@@ -4,6 +4,15 @@ import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
 
+export function normalizeKey(key: string): string {
+  if (!key) return '';
+  try {
+    return decodeURIComponent(key);
+  } catch {
+    return key;
+  }
+}
+
 export function getStoredMeetings(): Meeting[] {
   if (typeof window === 'undefined') return [];
   try {
@@ -21,7 +30,12 @@ export function saveStoredMeeting(meeting: Meeting) {
   if (typeof window === 'undefined') return;
   try {
     const existing = getStoredMeetings();
-    const updated = [meeting, ...existing.filter((m) => m.id !== meeting.id && m.slug !== meeting.slug)];
+    const cleanMeeting: Meeting = {
+      ...meeting,
+      id: normalizeKey(meeting.id),
+      slug: normalizeKey(meeting.slug),
+    };
+    const updated = [cleanMeeting, ...existing.filter((m) => m.id !== cleanMeeting.id && m.slug !== cleanMeeting.slug)];
     localStorage.setItem(MEETINGS_LIST_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent('meetings_list_updated'));
   } catch (err) {
@@ -30,14 +44,16 @@ export function saveStoredMeeting(meeting: Meeting) {
 }
 
 export function getStoredMeetingBySlug(slug: string): Meeting | null {
+  const norm = normalizeKey(slug);
   const meetings = getStoredMeetings();
-  return meetings.find((m) => m.slug === slug || m.id === slug) || null;
+  return meetings.find((m) => normalizeKey(m.slug) === norm || normalizeKey(m.id) === norm) || null;
 }
 
-export function getStoredMeetingData(meetingId: string): ParticipantWithDetails[] | null {
-  if (typeof window === 'undefined') return null;
+export function getStoredMeetingData(key: string): ParticipantWithDetails[] | null {
+  if (typeof window === 'undefined' || !key) return null;
+  const norm = normalizeKey(key);
   try {
-    const raw = localStorage.getItem(`${STORAGE_KEY}_${meetingId}`);
+    const raw = localStorage.getItem(`${STORAGE_KEY}_${norm}`);
     if (raw) {
       return JSON.parse(raw);
     }
@@ -47,11 +63,12 @@ export function getStoredMeetingData(meetingId: string): ParticipantWithDetails[
   return null;
 }
 
-export function saveStoredMeetingData(meetingId: string, participants: ParticipantWithDetails[]) {
-  if (typeof window === 'undefined') return;
+export function saveStoredMeetingData(key: string, participants: ParticipantWithDetails[]) {
+  if (typeof window === 'undefined' || !key) return;
+  const norm = normalizeKey(key);
   try {
-    localStorage.setItem(`${STORAGE_KEY}_${meetingId}`, JSON.stringify(participants));
-    window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { meetingId } }));
+    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(participants));
+    window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
   } catch (err) {
     console.warn('Failed to save meeting data to localStorage:', err);
   }
@@ -61,15 +78,18 @@ export function saveStoredMeetingData(meetingId: string, participants: Participa
  * Updates availability slots for a specific participant in a meeting
  */
 export function updateParticipantSlots(
-  meetingId: string,
+  meetingKey: string,
   participantId: string,
   guestProfile: { full_name: string; email: string; company?: string; phone_number?: string; role?: string },
   slots: { start_time: string; end_time: string }[]
 ) {
-  const existing = getStoredMeetingData(meetingId) || [
+  if (!meetingKey) return [];
+  const normKey = normalizeKey(meetingKey);
+
+  const existing = getStoredMeetingData(normKey) || [
     {
       id: 'part-1',
-      meeting_id: meetingId,
+      meeting_id: normKey,
       profile_id: 'prof-1',
       is_required: true,
       profile: {
@@ -84,7 +104,7 @@ export function updateParticipantSlots(
     },
   ];
 
-  // Find or create participant
+  // Find or create participant by ID or Email
   let pIndex = existing.findIndex((p) => p.id === participantId || p.profile?.email === guestProfile.email);
 
   const formattedSlots: AvailabilitySlot[] = slots.map((s, idx) => ({
@@ -110,7 +130,7 @@ export function updateParticipantSlots(
   } else {
     const newParticipant: ParticipantWithDetails = {
       id: participantId,
-      meeting_id: meetingId,
+      meeting_id: normKey,
       profile_id: `prof-${Date.now()}`,
       is_required: true,
       profile: {
@@ -126,7 +146,7 @@ export function updateParticipantSlots(
     existing.push(newParticipant);
   }
 
-  saveStoredMeetingData(meetingId, existing);
+  saveStoredMeetingData(normKey, existing);
   return existing;
 }
 

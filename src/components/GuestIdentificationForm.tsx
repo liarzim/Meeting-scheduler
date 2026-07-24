@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { setGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/context/LanguageContext';
+import { updateParticipantSlots } from '@/lib/meetingStore';
 
 interface GuestIdentificationFormProps {
   meetingId: string;
@@ -83,6 +84,9 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
     let profileId = `prof-${Date.now()}`;
     let participantId = `part-${Date.now()}`;
+
+    // Instantly register participant in meetingStore so organizer sees them in sidebar
+    updateParticipantSlots(meetingId, participantId, guestInfo, []);
 
     try {
       const profileData = {
