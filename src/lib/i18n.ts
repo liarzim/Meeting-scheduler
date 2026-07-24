@@ -34,14 +34,17 @@ export const translations = {
 
     // Modal
     'modal.createTitle': 'Create New Meeting',
+    'modal.createSubtitle': 'Fill in the details below to generate an interactive schedule & shareable link.',
     'modal.titleLabel': 'Meeting Title *',
     'modal.titlePlaceholder': 'e.g. Q3 Architecture Sync',
     'modal.descLabel': 'Description / Notes',
     'modal.descPlaceholder': 'Brief agenda or purpose for the attendees...',
-    'modal.slugLabel': 'Generated Shareable Slug',
-    'modal.slugHelp': 'Unique URL path for participant access.',
+    'modal.slugLabel': 'Generated Shareable Link (Clean UUID)',
+    'modal.slugHelp': 'Standard 36-character UUID link generated automatically.',
     'modal.cancel': 'Cancel',
+    'modal.cancelBtn': 'Cancel',
     'modal.submit': 'Create Meeting',
+    'modal.submitBtn': 'Create Meeting',
     'modal.submitting': 'Creating...',
 
     // Meeting Detail View
@@ -67,6 +70,11 @@ export const translations = {
     'heatmap.matchLess80': '<80% Match',
     'heatmap.disabledFriSat': 'Disabled (Fri/Sat)',
     'heatmap.timeCol': 'Time',
+    'heatmap.legendLabel': 'Availability Legend',
+    'heatmap.legend100': '100% Match',
+    'heatmap.legendPartial': 'Partial Match',
+    'heatmap.legendNone': 'No Availability',
+    'heatmap.requiredCount': 'required participants',
 
     // Days
     'days.sun': 'Sunday',
@@ -147,14 +155,17 @@ export const translations = {
 
     // Modal
     'modal.createTitle': 'צור פגישה חדשה',
+    'modal.createSubtitle': 'מלא את הפרטים להלן כדי ליצור לוח זמנים אינטראקטיבי וקישור לשיתוף.',
     'modal.titleLabel': 'כותרת הפגישה *',
     'modal.titlePlaceholder': 'לדוגמה: סנכרון ארכיטקטורה רבעון 3',
     'modal.descLabel': 'תיאור / הערות',
     'modal.descPlaceholder': 'אג\'נדה קצרה או מטרת המפגש עבור המשתתפים...',
-    'modal.slugLabel': 'מזהה URL ייחודי לשתוף',
-    'modal.slugHelp': 'נתיב URL ייחודי לגישת המשתתפים.',
+    'modal.slugLabel': 'קישור ייחודי לשיתוף (UUID נקי)',
+    'modal.slugHelp': 'קישור URL תקני מסוג UUID שנוצר אוטומטית.',
     'modal.cancel': 'ביטול',
+    'modal.cancelBtn': 'ביטול',
     'modal.submit': 'צור פגישה',
+    'modal.submitBtn': 'צור פגישה',
     'modal.submitting': 'יוצר...',
 
     // Meeting Detail View
@@ -180,6 +191,11 @@ export const translations = {
     'heatmap.matchLess80': '<80% התאמה',
     'heatmap.disabledFriSat': 'מנוטרל (שישי/שבת)',
     'heatmap.timeCol': 'שעה',
+    'heatmap.legendLabel': 'מקרא זמינות',
+    'heatmap.legend100': '100% התאמה',
+    'heatmap.legendPartial': 'התאמה חלקית',
+    'heatmap.legendNone': 'אין זמינות',
+    'heatmap.requiredCount': 'משתתפי חובה',
 
     // Days
     'days.sun': 'יום ראשון',
