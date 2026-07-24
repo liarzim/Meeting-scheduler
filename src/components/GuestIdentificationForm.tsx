@@ -23,7 +23,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
 
-  // Clean title for display (decode URI and strip random suffix)
+  // Clean title for display
   const cleanTitle = useMemo(() => {
     try {
       const decoded = decodeURIComponent(meetingTitle);
@@ -82,15 +82,17 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
     }
     setGuestCookie(guestInfo);
 
-    let profileId = `prof-${Date.now()}`;
-    let participantId = `part-${Date.now()}`;
+    // Generate standard 36-char UUIDs compatible with Supabase Postgres UUID columns
+    let profileId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
+    let participantId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
 
     // Instantly register participant in meetingStore so organizer sees them in sidebar
     updateParticipantSlots(meetingId, participantId, guestInfo, []);
 
     try {
-      // 1. Ensure Profile in Supabase DB
+      // 1. Upsert Profile in Supabase DB
       const profileData = {
+        id: profileId,
         email: guestInfo.email,
         full_name: guestInfo.full_name,
         company: guestInfo.company,
@@ -103,20 +105,29 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
         .select()
         .single();
 
-      if (profileResult) {
+      if (profileResult && profileResult.id) {
         profileId = profileResult.id;
       }
 
-      // 2. Ensure Meeting in Supabase DB
-      await (supabase.from('meetings') as any).upsert(
-        [{ id: meetingId, title: cleanTitle, slug: normalizeKey(meetingId), status: 'OPEN' }],
-        { onConflict: 'id' }
-      );
+      // 2. Upsert Meeting in Supabase DB
+      const meetingData = {
+        id: meetingId.length > 30 ? meetingId : crypto.randomUUID ? crypto.randomUUID() : meetingId,
+        title: cleanTitle,
+        slug: normalizeKey(meetingId),
+        status: 'OPEN',
+      };
+
+      const { data: meetingResult } = await (supabase.from('meetings') as any)
+        .upsert([meetingData], { onConflict: 'slug' })
+        .select()
+        .single();
+
+      const finalMeetingId = meetingResult?.id || meetingId;
 
       // 3. Upsert Participant in Supabase DB
       const participantData = {
         id: participantId,
-        meeting_id: meetingId,
+        meeting_id: finalMeetingId,
         profile_id: profileId,
         is_required: true,
       };
@@ -126,7 +137,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
         .select()
         .single();
 
-      if (partResult) {
+      if (partResult && partResult.id) {
         participantId = partResult.id;
       }
     } catch (err) {

@@ -174,6 +174,7 @@ export function InviteeCalendar({
         const endTime = new Date(startTime.getTime() + 30 * 60 * 1000);
 
         return {
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `av-${Date.now()}-${Math.random()}`,
           participant_id: participantId,
           slot_key: slotKey,
           start_time: startTime.toISOString(),
@@ -181,7 +182,7 @@ export function InviteeCalendar({
         };
       });
 
-      // Save to meetingStore for specific meeting ID & meeting slug
+      // Save to local meetingStore
       if (meetingId) {
         updateParticipantSlots(meetingId, participantId, guestInfo, slotsToInsert);
       }
@@ -192,8 +193,15 @@ export function InviteeCalendar({
       updateParticipantSlots('m-1', participantId, guestInfo, slotsToInsert);
       updateParticipantSlots('q3-product-architecture-scaling-review', participantId, guestInfo, slotsToInsert);
 
-      // Attempt Supabase DB Insert
-      const { error } = await (supabase.from('availability_slots') as any).insert(slotsToInsert);
+      // Attempt Supabase DB Insert into availability_slots table
+      const dbPayload = slotsToInsert.map((s) => ({
+        id: s.id,
+        participant_id: s.participant_id,
+        start_time: s.start_time,
+        end_time: s.end_time,
+      }));
+
+      const { error } = await (supabase.from('availability_slots') as any).insert(dbPayload);
       if (error) {
         console.warn('Supabase insert warning for availability slots:', error.message);
       }
