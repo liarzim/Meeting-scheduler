@@ -36,7 +36,11 @@ export default function OrganizerDashboard() {
 
       if (!error && data && data.length > 0) {
         (data as Meeting[]).forEach((m) => {
-          const storedSlots = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug) || [];
+          const storedSlots =
+            getStoredMeetingData(m.id) ||
+            getStoredMeetingData(m.slug) ||
+            getStoredMeetingData(decodeURIComponent(m.slug)) ||
+            [];
           map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
         });
       }
@@ -44,7 +48,11 @@ export default function OrganizerDashboard() {
       // Merge local meetingStore meetings so user-created meetings never disappear
       stored.forEach((m) => {
         if (!map.has(m.id)) {
-          const storedSlots = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug) || [];
+          const storedSlots =
+            getStoredMeetingData(m.id) ||
+            getStoredMeetingData(m.slug) ||
+            getStoredMeetingData(decodeURIComponent(m.slug)) ||
+            [];
           map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
         }
       });
@@ -52,7 +60,17 @@ export default function OrganizerDashboard() {
       setMeetings(Array.from(map.values()));
     } catch {
       const stored = getStoredMeetings();
-      setMeetings(stored.map((m) => ({ ...m, ...computeMeetingStats(getStoredMeetingData(m.id) || []) })));
+      setMeetings(
+        stored.map((m) => ({
+          ...m,
+          ...computeMeetingStats(
+            getStoredMeetingData(m.id) ||
+              getStoredMeetingData(m.slug) ||
+              getStoredMeetingData(decodeURIComponent(m.slug)) ||
+              []
+          ),
+        }))
+      );
     } finally {
       setLoading(false);
     }
@@ -62,15 +80,24 @@ export default function OrganizerDashboard() {
     refreshMeetings();
   }, []);
 
-  // Listen for real-time live availability submissions & meeting list updates
+  // Listen for real-time live availability submissions across all tabs
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
       refreshMeetings();
-      showToast('Live update: Invitee submitted availability!');
+      showToast('Live sync: Availability updated!');
     };
 
     window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
     window.addEventListener('meetings_list_updated', refreshMeetings);
+    window.addEventListener('storage', handleAvailabilityUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
+      bc.onmessage = () => {
+        handleAvailabilityUpdate();
+      };
+    }
 
     const channel = supabase
       .channel('realtime:availability_slots')
@@ -82,6 +109,8 @@ export default function OrganizerDashboard() {
     return () => {
       window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
       window.removeEventListener('meetings_list_updated', refreshMeetings);
+      window.removeEventListener('storage', handleAvailabilityUpdate);
+      if (bc) bc.close();
       supabase.removeChannel(channel);
     };
   }, []);
@@ -92,7 +121,7 @@ export default function OrganizerDashboard() {
       totalParticipants: 1,
       submittedParticipants: 1,
       bestMatchPct: 100,
-      bestMatchSlot: 'Mon 09:00 AM',
+      bestMatchSlot: 'Pending Responses',
     };
     setMeetings((prev) => [extendedNew, ...prev.filter((m) => m.id !== newMeeting.id)]);
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
@@ -188,7 +217,7 @@ export default function OrganizerDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {meetings.map((m) => {
                   const total = m.totalParticipants || 1;
-                  const submitted = m.submittedParticipants || 1;
+                  const submitted = m.submittedParticipants || 0;
                   const responsePct = Math.round((submitted / total) * 100);
                   const bestPct = m.bestMatchPct || 100;
 

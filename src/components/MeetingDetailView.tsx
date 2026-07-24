@@ -59,25 +59,43 @@ export function MeetingDetailView({
     }
   }, [initialMeeting.slug, initialMeeting.id]);
 
-  // Load client-stored participants in useEffect
-  useEffect(() => {
-    const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
+  const loadData = () => {
+    const stored =
+      getStoredMeetingData(meeting.id) ||
+      getStoredMeetingData(meeting.slug) ||
+      getStoredMeetingData(decodeURIComponent(meeting.slug));
     if (stored && stored.length > 0) {
       setParticipants(stored);
     }
+  };
+
+  // Load client-stored participants on mount
+  useEffect(() => {
+    loadData();
   }, [meeting.id, meeting.slug]);
 
-  // Listen for real-time live availability submissions
+  // Listen for real-time live availability submissions across all tabs
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
-      const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
-      if (stored && stored.length > 0) {
-        setParticipants(stored);
-      }
+      loadData();
     };
 
     window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
-    return () => window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+    window.addEventListener('storage', handleAvailabilityUpdate);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
+      bc.onmessage = () => {
+        handleAvailabilityUpdate();
+      };
+    }
+
+    return () => {
+      window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+      window.removeEventListener('storage', handleAvailabilityUpdate);
+      if (bc) bc.close();
+    };
   }, [meeting.id, meeting.slug]);
 
   const handleCopyLink = () => {
@@ -190,10 +208,7 @@ export function MeetingDetailView({
                 meetingTitle={meeting.title}
                 onSubmitted={() => {
                   setIsEditingHostAvailability(false);
-                  const stored = getStoredMeetingData(meeting.id) || getStoredMeetingData(meeting.slug);
-                  if (stored && stored.length > 0) {
-                    setParticipants(stored);
-                  }
+                  loadData();
                 }}
                 onBack={() => setIsEditingHostAvailability(false)}
               />

@@ -3,6 +3,7 @@ import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
+const LIVE_SYNC_CHANNEL_NAME = 'meeting_scheduler_live_sync_v1';
 
 export function normalizeKey(key: string): string {
   if (!key) return '';
@@ -37,7 +38,16 @@ export function saveStoredMeeting(meeting: Meeting) {
     };
     const updated = [cleanMeeting, ...existing.filter((m) => m.id !== cleanMeeting.id && m.slug !== cleanMeeting.slug)];
     localStorage.setItem(MEETINGS_LIST_KEY, JSON.stringify(updated));
+    
+    // Dispatch local custom event
     window.dispatchEvent(new CustomEvent('meetings_list_updated'));
+
+    // Broadcast cross-tab live sync
+    if ('BroadcastChannel' in window) {
+      const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
+      bc.postMessage({ type: 'MEETINGS_LIST_UPDATED' });
+      bc.close();
+    }
   } catch (err) {
     console.warn('Failed to save meeting to list:', err);
   }
@@ -68,7 +78,16 @@ export function saveStoredMeetingData(key: string, participants: ParticipantWith
   const norm = normalizeKey(key);
   try {
     localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(participants));
+
+    // Dispatch local custom event
     window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
+
+    // Broadcast cross-tab live sync message
+    if ('BroadcastChannel' in window) {
+      const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
+      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm });
+      bc.close();
+    }
   } catch (err) {
     console.warn('Failed to save meeting data to localStorage:', err);
   }
@@ -156,11 +175,55 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]) {
   const submitted = participants.filter((p) => p.availability && p.availability.length > 0).length;
   const required = participants.filter((p) => p.is_required !== false);
   
-  const matchPct = required.length > 0 ? Math.round((submitted / total) * 100) : 0;
+  const matchPct = total > 0 ? Math.round((submitted / total) * 100) : 0;
+
+  // Compute actual best matching slot text (e.g. "Sun 3:30 PM")
+  let bestSlotText = 'Pending Responses';
+  let bestCount = 0;
+
+  if (participants.length > 0) {
+    const slotCounts: Record<string, number> = {};
+    participants.forEach((p) => {
+      if (p.availability) {
+        p.availability.forEach((av) => {
+          const key = av.slot_key || av.start_time;
+          slotCounts[key] = (slotCounts[key] || 0) + 1;
+        });
+      }
+    });
+
+    let topKey = '';
+    Object.entries(slotCounts).forEach(([key, count]) => {
+      if (count > bestCount) {
+        bestCount = count;
+        topKey = key;
+      }
+    });
+
+    if (topKey) {
+      if (topKey.includes('_')) {
+        const [datePart, timePart] = topKey.split('_');
+        const [yearStr, monthStr, dayStr] = datePart.split('-');
+        const [hoursStr, minutesStr] = timePart.split(':');
+        const d = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10) - 1, parseInt(dayStr, 10));
+        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+        const h = parseInt(hoursStr, 10);
+        const m = parseInt(minutesStr, 10);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+        const displayM = m === 0 ? '00' : String(m).padStart(2, '0');
+        bestSlotText = `${dayName} ${displayH}:${displayM} ${ampm}`;
+      } else {
+        const d = new Date(topKey);
+        bestSlotText = d.toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+      }
+    }
+  }
+
   return {
     totalParticipants: total,
     submittedParticipants: submitted,
-    bestMatchPct: Math.min(100, Math.max(50, matchPct > 0 ? matchPct : 100)),
-    bestMatchSlot: 'Mon 10:00 AM',
+    bestMatchPct: matchPct > 0 ? matchPct : 100,
+    bestMatchSlot: bestSlotText,
   };
 }
