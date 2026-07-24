@@ -47,13 +47,29 @@ export function InviteeCalendar({
   const [timezone, setTimezone] = useState('');
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
-  const now = new Date();
 
-  const isPastSlot = (dayDate: Date, totalMinutes: number) => {
-    const slotDate = new Date(dayDate);
-    slotDate.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-    return slotDate.getTime() < now.getTime();
-  };
+  const isPastSlot = useCallback((dayDate: Date, totalMinutes: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const targetDay = new Date(dayDate);
+    targetDay.setHours(0, 0, 0, 0);
+
+    // Target day is before today -> Past
+    if (targetDay.getTime() < today.getTime()) {
+      return true;
+    }
+
+    // Target day is after today (future date / next week) -> NEVER past!
+    if (targetDay.getTime() > today.getTime()) {
+      return false;
+    }
+
+    // Target day is today -> compare current minute of day
+    const currentNow = new Date();
+    const currentMinutes = currentNow.getHours() * 60 + currentNow.getMinutes();
+    return totalMinutes < currentMinutes;
+  }, []);
 
   const daysConfig = useMemo(() => [
     { key: 0, label: t('days.sun'), short: t('days.shortSun'), date: weekDates[0], isDisabled: false },
@@ -232,7 +248,7 @@ export function InviteeCalendar({
       </div>
 
       {/* Week Notice Banner */}
-      {weekOffset === 0 && (
+      {weekOffset === 0 ? (
         <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-3">
           <span className="font-medium">
             💡 <strong>Note:</strong> Past hours today are grayed out (`—`). Click any upcoming slot or <strong>Next Week →</strong> to mark your availability in <strong>Vibrant Green (✓ פנוי)</strong>!
@@ -242,6 +258,18 @@ export function InviteeCalendar({
             className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shrink-0 shadow-sm"
           >
             Go to Next Week →
+          </button>
+        </div>
+      ) : (
+        <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-xs text-blue-800 dark:text-blue-300 flex items-center justify-between gap-3">
+          <span className="font-medium">
+            📅 <strong>Next Week View:</strong> All time slots are open! Click or drag across any 30-minute block to select your available times in <strong>Green (✓ פנוי)</strong>.
+          </span>
+          <button
+            onClick={() => setWeekOffset(0)}
+            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors shrink-0 shadow-sm"
+          >
+            ← Current Week
           </button>
         </div>
       )}
@@ -305,7 +333,7 @@ export function InviteeCalendar({
                         key={`${getDateKey(day.date)}_${slot.timeString}`}
                         data-disabled="true"
                         className="h-8 rounded-lg bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-900/80 opacity-40 cursor-not-allowed select-none flex items-center justify-center text-[10px] text-slate-400 dark:text-slate-700 font-mono"
-                        title={isPast ? "Past time slot" : "Disabled"}
+                        title="Past time slot"
                       >
                         —
                       </div>
@@ -322,6 +350,7 @@ export function InviteeCalendar({
                       data-disabled="false"
                       onClick={(e) => {
                         e.preventDefault();
+                        e.stopPropagation();
                         if (isDisabled) return;
                         updateSlotSelection(slotKey, isSelected ? 'deselect' : 'select');
                       }}

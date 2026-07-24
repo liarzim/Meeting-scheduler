@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { AvailabilitySlot, MeetingParticipant, Profile } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { getWeekDates } from '@/lib/timezone';
@@ -52,11 +52,25 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const now = new Date();
 
-  const isPastSlot = (dayDate: Date, totalMinutes: number) => {
-    const slotDate = new Date(dayDate);
-    slotDate.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-    return slotDate.getTime() < now.getTime();
-  };
+  const isPastSlot = useCallback((dayDate: Date, totalMinutes: number) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const targetDay = new Date(dayDate);
+    targetDay.setHours(0, 0, 0, 0);
+
+    if (targetDay.getTime() < today.getTime()) {
+      return true;
+    }
+
+    if (targetDay.getTime() > today.getTime()) {
+      return false;
+    }
+
+    const currentNow = new Date();
+    const currentMinutes = currentNow.getHours() * 60 + currentNow.getMinutes();
+    return totalMinutes < currentMinutes;
+  }, []);
 
   const daysConfig = useMemo(() => [
     { key: 0, label: t('days.sun'), short: t('days.shortSun'), date: weekDates[0], isDisabled: false },
