@@ -3,12 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { Meeting } from '@/types';
+import { supabase } from '@/lib/supabase';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug } from '@/lib/meetingStore';
+import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
 
 interface MeetingDetailViewProps {
@@ -59,7 +60,37 @@ export function MeetingDetailView({
     }
   }, [initialMeeting.slug, initialMeeting.id]);
 
-  const loadData = () => {
+  const loadData = async () => {
+    // 1. Attempt fetching live data from Supabase DB
+    try {
+      const normSlug = normalizeKey(meeting.slug);
+      const normId = normalizeKey(meeting.id);
+
+      const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
+        .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
+        .or(`id.eq.${normId},slug.eq.${normSlug}`)
+        .single();
+
+      if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
+        const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+          id: mp.id,
+          meeting_id: mp.meeting_id,
+          profile_id: mp.profile_id,
+          is_required: mp.is_required !== false,
+          profile: mp.profiles,
+          availability: mp.availability_slots || [],
+        }));
+
+        setParticipants(dbParticipants);
+        saveStoredMeetingData(meeting.id, dbParticipants);
+        saveStoredMeetingData(meeting.slug, dbParticipants);
+        return;
+      }
+    } catch (err) {
+      console.warn('Supabase DB fetch fallback:', err);
+    }
+
+    // 2. Fallback to local meetingStore
     const stored =
       getStoredMeetingData(meeting.id) ||
       getStoredMeetingData(meeting.slug) ||
@@ -69,12 +100,12 @@ export function MeetingDetailView({
     }
   };
 
-  // Load client-stored participants on mount
+  // Load participants on mount and when meeting changes
   useEffect(() => {
     loadData();
   }, [meeting.id, meeting.slug]);
 
-  // Listen for real-time live availability submissions across all tabs
+  // Listen for real-time live availability submissions across all tabs & Supabase Realtime
   useEffect(() => {
     const handleAvailabilityUpdate = () => {
       loadData();
@@ -91,10 +122,22 @@ export function MeetingDetailView({
       };
     }
 
+    // Supabase Realtime subscription
+    const channel = supabase
+      .channel(`meeting_realtime_${normalizeKey(meeting.slug)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
+        handleAvailabilityUpdate();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
+        handleAvailabilityUpdate();
+      })
+      .subscribe();
+
     return () => {
       window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
       window.removeEventListener('storage', handleAvailabilityUpdate);
       if (bc) bc.close();
+      supabase.removeChannel(channel);
     };
   }, [meeting.id, meeting.slug]);
 

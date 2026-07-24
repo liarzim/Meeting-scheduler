@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { setGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/context/LanguageContext';
-import { updateParticipantSlots } from '@/lib/meetingStore';
+import { updateParticipantSlots, normalizeKey } from '@/lib/meetingStore';
 
 interface GuestIdentificationFormProps {
   meetingId: string;
@@ -35,7 +35,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
   // Check if participant previously entered for THIS meeting before
   useEffect(() => {
-    const meetingStorageKey = `guest_submitted_${meetingId}`;
+    const meetingStorageKey = `guest_submitted_${normalizeKey(meetingId)}`;
     const savedForMeeting = typeof window !== 'undefined' ? localStorage.getItem(meetingStorageKey) : null;
 
     if (savedForMeeting) {
@@ -78,7 +78,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
     // Save locally under per-meeting key so returning visitors are recognized
     if (typeof window !== 'undefined') {
-      localStorage.setItem(`guest_submitted_${meetingId}`, JSON.stringify(guestInfo));
+      localStorage.setItem(`guest_submitted_${normalizeKey(meetingId)}`, JSON.stringify(guestInfo));
     }
     setGuestCookie(guestInfo);
 
@@ -89,6 +89,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
     updateParticipantSlots(meetingId, participantId, guestInfo, []);
 
     try {
+      // 1. Ensure Profile in Supabase DB
       const profileData = {
         email: guestInfo.email,
         full_name: guestInfo.full_name,
@@ -97,31 +98,39 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
         is_organizer: false,
       };
 
-      const { data: profileResult, error: profileErr } = await (supabase.from('profiles') as any)
+      const { data: profileResult } = await (supabase.from('profiles') as any)
         .upsert([profileData], { onConflict: 'email' })
         .select()
         .single();
 
-      if (!profileErr && profileResult) {
+      if (profileResult) {
         profileId = profileResult.id;
       }
 
+      // 2. Ensure Meeting in Supabase DB
+      await (supabase.from('meetings') as any).upsert(
+        [{ id: meetingId, title: cleanTitle, slug: normalizeKey(meetingId), status: 'OPEN' }],
+        { onConflict: 'id' }
+      );
+
+      // 3. Upsert Participant in Supabase DB
       const participantData = {
+        id: participantId,
         meeting_id: meetingId,
         profile_id: profileId,
         is_required: true,
       };
 
-      const { data: partResult, error: partErr } = await (supabase.from('meeting_participants') as any)
-        .insert([participantData])
+      const { data: partResult } = await (supabase.from('meeting_participants') as any)
+        .upsert([participantData], { onConflict: 'id' })
         .select()
         .single();
 
-      if (!partErr && partResult) {
+      if (partResult) {
         participantId = partResult.id;
       }
     } catch (err) {
-      console.warn('Using local shadow profile fallback:', err);
+      console.warn('Supabase DB profile/participant upsert fallback:', err);
     } finally {
       setIsSubmitting(false);
       onComplete(participantId, profileId, guestInfo);
