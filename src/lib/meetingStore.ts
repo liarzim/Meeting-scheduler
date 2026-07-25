@@ -112,21 +112,67 @@ export function saveStoredMeetingData(key: string, participants: ParticipantWith
   if (typeof window === 'undefined' || !key) return;
   const norm = normalizeKey(key);
   try {
-    // Clean up legacy dummy fallback host before saving
-    let cleanParticipants = participants;
-    if (cleanParticipants.length > 1 && cleanParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
-      cleanParticipants = cleanParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+    // 1. Get currently stored participants to perform deep merge
+    const currentlyStored = getStoredMeetingData(norm) || [];
+    const map = new Map<string, ParticipantWithDetails>();
+
+    // Index existing participants by email or ID
+    currentlyStored.forEach((p) => {
+      const pKey = p.profile?.email ? p.profile.email.toLowerCase() : p.id;
+      map.set(pKey, p);
+    });
+
+    // Merge incoming participants
+    participants.forEach((p) => {
+      const pKey = p.profile?.email ? p.profile.email.toLowerCase() : p.id;
+      const existingP = map.get(pKey);
+
+      if (existingP) {
+        map.set(pKey, {
+          ...existingP,
+          ...p,
+          is_required: p.is_required !== undefined ? p.is_required : existingP.is_required,
+          profile: {
+            ...existingP.profile,
+            ...p.profile,
+          },
+          availability: p.availability && p.availability.length > 0 ? p.availability : existingP.availability || [],
+        });
+      } else {
+        map.set(pKey, p);
+      }
+    });
+
+    let mergedParticipants = Array.from(map.values());
+
+    // Clean up legacy dummy fallback host if an actual host exists
+    if (mergedParticipants.length > 1 && mergedParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
+      mergedParticipants = mergedParticipants.filter((p) => p.profile?.email !== 'host@company.com');
     }
 
-    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(cleanParticipants));
+    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(mergedParticipants));
+
+    // Also sync to matching meeting ID or Slug
+    const meetings = getStoredMeetings();
+    const matched = meetings.find((m) => normalizeKey(m.id) === norm || normalizeKey(m.slug) === norm);
+    if (matched) {
+      const normId = normalizeKey(matched.id);
+      const normSlug = normalizeKey(matched.slug);
+      if (normId !== norm) {
+        localStorage.setItem(`${STORAGE_KEY}_${normId}`, JSON.stringify(mergedParticipants));
+      }
+      if (normSlug !== norm) {
+        localStorage.setItem(`${STORAGE_KEY}_${normSlug}`, JSON.stringify(mergedParticipants));
+      }
+    }
 
     // Dispatch local custom event
     window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
 
-    // Broadcast cross-tab live sync message
+    // Broadcast cross-tab live sync message with full merged participants payload
     if ('BroadcastChannel' in window) {
       const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
-      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm });
+      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm, participants: mergedParticipants });
       bc.close();
     }
   } catch (err) {
@@ -197,7 +243,7 @@ export function updateParticipantSlots(
   }
 
   saveStoredMeetingData(normKey, existing);
-  return existing;
+  return getStoredMeetingData(normKey) || existing;
 }
 
 export function computeMeetingStats(participants: ParticipantWithDetails[]) {
