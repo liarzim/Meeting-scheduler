@@ -5,6 +5,17 @@ const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
 const LIVE_SYNC_CHANNEL_NAME = 'meeting_scheduler_live_sync_v1';
 
+export interface TopTimeSlot {
+  slotKey: string;
+  dateStrEn: string;
+  dateStrHe: string;
+  timeRangeEn: string;
+  timeRangeHe: string;
+  pct: number;
+  availableCount: number;
+  totalCount: number;
+}
+
 export function normalizeKey(key: string): string {
   if (!key) return '';
   try {
@@ -258,9 +269,9 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]) {
   
   const matchPct = total > 0 ? Math.round((submitted / total) * 100) : 0;
 
-  // Compute actual best matching slot text (e.g. "Sun 3:30 PM")
   let bestSlotText = 'Pending Responses';
   let bestCount = 0;
+  const candidateSlots: TopTimeSlot[] = [];
 
   if (clean.length > 0) {
     const slotCounts: Record<string, number> = {};
@@ -273,32 +284,80 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]) {
       }
     });
 
-    let topKey = '';
     Object.entries(slotCounts).forEach(([key, count]) => {
-      if (count > bestCount) {
-        bestCount = count;
-        topKey = key;
+      const pct = Math.round((count / total) * 100);
+
+      // Extract date and time range
+      let dateStrEn = key;
+      let dateStrHe = key;
+      let timeRangeEn = '';
+      let timeRangeHe = '';
+
+      if (key.includes('_')) {
+        const [datePart, timePart] = key.split('_');
+        const [yearStr, monthStr, dayStr] = datePart.split('-');
+        const [hoursStr, minutesStr] = timePart.split(':');
+        
+        const year = parseInt(yearStr, 10);
+        const month = parseInt(monthStr, 10) - 1;
+        const day = parseInt(dayStr, 10);
+        const startH = parseInt(hoursStr, 10);
+        const startM = parseInt(minutesStr, 10);
+
+        const startDate = new Date(year, month, day, startH, startM);
+        const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
+
+        const endH = endDate.getHours();
+        const endM = endDate.getMinutes();
+
+        dateStrEn = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        dateStrHe = startDate.toLocaleDateString('he-IL', { weekday: 'short', month: 'short', day: 'numeric' });
+
+        const fmt24 = (h: number, m: number) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        timeRangeHe = `${fmt24(startH, startM)} - ${fmt24(endH, endM)}`;
+
+        const fmt12 = (h: number, m: number) => {
+          const ampm = h >= 12 ? 'PM' : 'AM';
+          const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
+          const dm = m === 0 ? '00' : String(m).padStart(2, '0');
+          return `${dh}:${dm} ${ampm}`;
+        };
+        timeRangeEn = `${fmt12(startH, startM)} - ${fmt12(endH, endM)}`;
+
+        if (count > bestCount) {
+          bestCount = count;
+          bestSlotText = `${dateStrEn} ${fmt12(startH, startM)}`;
+        }
+      } else {
+        const d = new Date(key);
+        dateStrEn = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        dateStrHe = d.toLocaleDateString('he-IL', { weekday: 'short', month: 'short', day: 'numeric' });
+        timeRangeEn = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        timeRangeHe = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+
+        if (count > bestCount) {
+          bestCount = count;
+          bestSlotText = `${dateStrEn} ${timeRangeEn}`;
+        }
+      }
+
+      // Filter slots with 90% and above
+      if (pct >= 90) {
+        candidateSlots.push({
+          slotKey: key,
+          dateStrEn,
+          dateStrHe,
+          timeRangeEn,
+          timeRangeHe,
+          pct,
+          availableCount: count,
+          totalCount: total,
+        });
       }
     });
 
-    if (topKey) {
-      if (topKey.includes('_')) {
-        const [datePart, timePart] = topKey.split('_');
-        const [yearStr, monthStr, dayStr] = datePart.split('-');
-        const [hoursStr, minutesStr] = timePart.split(':');
-        const d = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10) - 1, parseInt(dayStr, 10));
-        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-        const h = parseInt(hoursStr, 10);
-        const m = parseInt(minutesStr, 10);
-        const ampm = h >= 12 ? 'PM' : 'AM';
-        const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
-        const displayM = m === 0 ? '00' : String(m).padStart(2, '0');
-        bestSlotText = `${dayName} ${displayH}:${displayM} ${ampm}`;
-      } else {
-        const d = new Date(topKey);
-        bestSlotText = d.toLocaleString('en-US', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-      }
-    }
+    // Sort candidate slots by pct descending, then slotKey ascending
+    candidateSlots.sort((a, b) => b.pct - a.pct || a.slotKey.localeCompare(b.slotKey));
   }
 
   return {
@@ -306,5 +365,6 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]) {
     submittedParticipants: submitted,
     bestMatchPct: matchPct > 0 ? matchPct : 100,
     bestMatchSlot: bestSlotText,
+    topTimeSlots: candidateSlots.slice(0, 3), // Return Top 3 (90%+)
   };
 }

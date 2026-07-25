@@ -8,13 +8,14 @@ import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, computeMeetingStats, getStoredMeetings, deleteStoredMeeting } from '@/lib/meetingStore';
+import { getStoredMeetingData, computeMeetingStats, getStoredMeetings, deleteStoredMeeting, type TopTimeSlot } from '@/lib/meetingStore';
 
 export interface ExtendedMeeting extends Meeting {
   totalParticipants?: number;
   submittedParticipants?: number;
   bestMatchPct?: number;
   bestMatchSlot?: string;
+  topTimeSlots?: TopTimeSlot[];
 }
 
 export default function OrganizerDashboard() {
@@ -125,6 +126,7 @@ export default function OrganizerDashboard() {
       submittedParticipants: 1,
       bestMatchPct: 100,
       bestMatchSlot: 'Pending Responses',
+      topTimeSlots: [],
     };
     setMeetings((prev) => [extendedNew, ...prev.filter((m) => m.id !== newMeeting.id)]);
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
@@ -242,7 +244,6 @@ export default function OrganizerDashboard() {
                   const total = m.totalParticipants || 1;
                   const submitted = m.submittedParticipants || 0;
                   const responsePct = Math.round((submitted / total) * 100);
-                  const bestPct = m.bestMatchPct || 100;
 
                   return (
                     <div
@@ -302,26 +303,48 @@ export default function OrganizerDashboard() {
                           </div>
                         </div>
 
-                        {/* Best Match % & Optimal Slot */}
-                        <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs">
-                          <div className="space-y-0.5">
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider">
-                              {t('dashboard.bestSlot')}
-                            </div>
-                            <div className="font-semibold text-slate-800 dark:text-slate-200">{m.bestMatchSlot}</div>
+                        {/* Top 3 Available Times (90%+) Section */}
+                        <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                              {language === 'he' ? '3 חלונות זמן מובילים (90%+):' : 'Top 3 Available Times (90%+):'}
+                            </span>
+                            {m.topTimeSlots && m.topTimeSlots.length > 0 && (
+                              <span className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                {m.topTimeSlots.length} {language === 'he' ? 'חלונות' : 'found'}
+                              </span>
+                            )}
                           </div>
 
-                          <div className="text-right">
-                            <span
-                              className={`inline-flex items-center gap-1 font-mono font-bold text-xs px-2.5 py-1 rounded-lg ${
-                                bestPct >= 90
-                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30'
-                              }`}
-                            >
-                              {bestPct}% {bestPct >= 90 ? '🟢' : '🟠'}
-                            </span>
-                          </div>
+                          {!m.topTimeSlots || m.topTimeSlots.length === 0 ? (
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-400 text-center">
+                              {language === 'he' ? 'טרם נמצאו חלונות זמן של 90% ומעלה' : 'No slots with 90%+ availability yet'}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {m.topTimeSlots.map((slot, idx) => (
+                                <div
+                                  key={idx}
+                                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs hover:border-emerald-500/40 transition-colors"
+                                >
+                                  <div className="space-y-0.5">
+                                    <div className="font-bold text-slate-800 dark:text-slate-200 text-xs flex items-center gap-1.5">
+                                      <span>📅</span> {language === 'he' ? slot.dateStrHe : slot.dateStrEn}
+                                    </div>
+                                    <div className="font-mono text-slate-600 dark:text-slate-400 text-[11px]">
+                                      ⏰ {language === 'he' ? slot.timeRangeHe : slot.timeRangeEn}
+                                    </div>
+                                  </div>
+
+                                  <div className="text-right">
+                                    <span className="inline-flex items-center gap-1 font-mono font-bold text-xs px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shadow-sm">
+                                      🟢 {slot.pct}%
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
 
