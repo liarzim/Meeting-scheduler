@@ -16,7 +16,7 @@ interface PublicMeetingPageProps {
 }
 
 export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const resolvedParams = use(params);
   const rawSlug = resolvedParams.slug;
   const decodedSlug = decodeURIComponent(rawSlug);
@@ -143,14 +143,24 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 py-8 px-4 transition-colors" dir={dir}>
       <div className="max-w-5xl mx-auto space-y-6">
-        {/* Top Header */}
-        <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-          <Link href="/" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
-            ← {t('nav.home')}
-          </Link>
-          <div className="text-xs font-mono text-slate-400 dark:text-slate-500">
-            ID: {meeting.id.substring(0, 8)}
+        {/* Top Header with Navigation & Direct Group Heatmap Link */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 gap-3">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+              ← {t('nav.home')}
+            </Link>
+            <div className="text-xs font-mono text-slate-400 dark:text-slate-500">
+              ID: {meeting.id.substring(0, 8)}
+            </div>
           </div>
+
+          <Link
+            href={`/meetings/${meeting.slug}`}
+            className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-800 text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
+          >
+            <span>📊</span>
+            <span>{language === 'he' ? 'צפה במפת חום קבוצתית של כל המשתתפים' : 'View Group Availability Heatmap'}</span>
+          </Link>
         </header>
 
         {/* Stepper Progress Bar */}
