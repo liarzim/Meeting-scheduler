@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/types';
@@ -46,7 +46,7 @@ export function MeetingDetailView({
     }
   }, [initialMeeting.slug, initialMeeting.id]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     let finalParticipants: ParticipantWithDetails[] = [];
 
     // 1. Fetch from local meetingStore first
@@ -120,12 +120,12 @@ export function MeetingDetailView({
       saveStoredMeetingData(meeting.id, finalParticipants);
       saveStoredMeetingData(meeting.slug, finalParticipants);
     }
-  };
+  }, [meeting.id, meeting.slug]);
 
   // Load participants on mount and when meeting changes
   useEffect(() => {
     loadData();
-  }, [meeting.id, meeting.slug]);
+  }, [loadData]);
 
   // Listen for real-time live availability submissions across all tabs & Supabase Realtime
   useEffect(() => {
@@ -161,7 +161,7 @@ export function MeetingDetailView({
       if (bc) bc.close();
       supabase.removeChannel(channel);
     };
-  }, [meeting.id, meeting.slug]);
+  }, [loadData, meeting.slug]);
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareableUrl);

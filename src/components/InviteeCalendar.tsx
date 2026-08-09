@@ -58,7 +58,7 @@ export function InviteeCalendar({
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
 
   // Load existing group participants & availability
-  const loadGroupAvailability = async () => {
+  const loadGroupAvailability = useCallback(async () => {
     const key = meetingId || meetingSlug || '';
     if (!key) return;
 
@@ -132,11 +132,11 @@ export function InviteeCalendar({
         setSelectedSlots(existingKeys);
       }
     }
-  };
+  }, [meetingId, meetingSlug, participantId, guestInfo.email]);
 
   useEffect(() => {
     loadGroupAvailability();
-  }, [meetingId, meetingSlug, participantId, guestInfo.email]);
+  }, [loadGroupAvailability]);
 
   // Index other participants' availability by slotKey
   const slotOccupancy = useMemo(() => {
