@@ -8,7 +8,14 @@ import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, computeMeetingStats, getStoredMeetings, deleteStoredMeeting, type TopTimeSlot } from '@/lib/meetingStore';
+import {
+  getStoredMeetingData,
+  computeMeetingStats,
+  getStoredMeetings,
+  deleteStoredMeeting,
+  isMeetingDeleted,
+  type TopTimeSlot,
+} from '@/lib/meetingStore';
 
 export interface ExtendedMeeting extends Meeting {
   totalParticipants?: number;
@@ -27,7 +34,7 @@ export default function OrganizerDashboard() {
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Delete modal state
-  const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string; slug?: string } | null>(null);
 
   const refreshMeetings = async () => {
     try {
@@ -40,41 +47,47 @@ export default function OrganizerDashboard() {
       const map = new Map<string, ExtendedMeeting>();
 
       if (!error && data && data.length > 0) {
-        (data as Meeting[]).forEach((m) => {
-          const storedSlots =
-            getStoredMeetingData(m.id) ||
-            getStoredMeetingData(m.slug) ||
-            getStoredMeetingData(decodeURIComponent(m.slug)) ||
-            [];
-          map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
-        });
+        (data as Meeting[])
+          .filter((m) => !isMeetingDeleted(m.id) && !isMeetingDeleted(m.slug))
+          .forEach((m) => {
+            const storedSlots =
+              getStoredMeetingData(m.id) ||
+              getStoredMeetingData(m.slug) ||
+              getStoredMeetingData(decodeURIComponent(m.slug)) ||
+              [];
+            map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
+          });
       }
 
       // Merge local meetingStore meetings so user-created meetings never disappear
-      stored.forEach((m) => {
-        if (!map.has(m.id)) {
-          const storedSlots =
-            getStoredMeetingData(m.id) ||
-            getStoredMeetingData(m.slug) ||
-            getStoredMeetingData(decodeURIComponent(m.slug)) ||
-            [];
-          map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
-        }
-      });
+      stored
+        .filter((m) => !isMeetingDeleted(m.id) && !isMeetingDeleted(m.slug))
+        .forEach((m) => {
+          if (!map.has(m.id)) {
+            const storedSlots =
+              getStoredMeetingData(m.id) ||
+              getStoredMeetingData(m.slug) ||
+              getStoredMeetingData(decodeURIComponent(m.slug)) ||
+              [];
+            map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
+          }
+        });
 
       setMeetings(Array.from(map.values()));
     } catch {
       const stored = getStoredMeetings();
       setMeetings(
-        stored.map((m) => ({
-          ...m,
-          ...computeMeetingStats(
-            getStoredMeetingData(m.id) ||
-              getStoredMeetingData(m.slug) ||
-              getStoredMeetingData(decodeURIComponent(m.slug)) ||
-              []
-          ),
-        }))
+        stored
+          .filter((m) => !isMeetingDeleted(m.id) && !isMeetingDeleted(m.slug))
+          .map((m) => ({
+            ...m,
+            ...computeMeetingStats(
+              getStoredMeetingData(m.id) ||
+                getStoredMeetingData(m.slug) ||
+                getStoredMeetingData(decodeURIComponent(m.slug)) ||
+                []
+            ),
+          }))
       );
     } finally {
       setLoading(false);
@@ -98,6 +111,7 @@ export default function OrganizerDashboard() {
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
+      bc.postMessage({ type: 'CHECK' });
       bc.onmessage = () => {
         handleAvailabilityUpdate();
       };
@@ -134,20 +148,22 @@ export default function OrganizerDashboard() {
 
   const confirmDeleteMeeting = async () => {
     if (!meetingToDelete) return;
-    const { id: meetingId, title } = meetingToDelete;
+    const { id: meetingId, title, slug } = meetingToDelete;
 
+    // 1. Delete from local meetingStore & blacklist immediately
+    deleteStoredMeeting(meetingId);
+    if (slug) deleteStoredMeeting(slug);
+
+    // 2. Attempt Supabase DB cascading delete
     try {
-      // 1. Delete from Supabase DB
+      await (supabase.from('meeting_participants') as any).delete().eq('meeting_id', meetingId);
       await (supabase.from('meetings') as any).delete().or(`id.eq.${meetingId},slug.eq.${meetingId}`);
     } catch (err) {
       console.warn('Supabase DB delete warning:', err);
     }
 
-    // 2. Delete from local meetingStore
-    deleteStoredMeeting(meetingId);
-
-    // 3. UI update
-    setMeetings((prev) => prev.filter((m) => m.id !== meetingId && m.slug !== meetingId));
+    // 3. UI state update
+    setMeetings((prev) => prev.filter((m) => m.id !== meetingId && m.slug !== meetingId && (!slug || m.slug !== slug)));
     setMeetingToDelete(null);
     showToast(language === 'he' ? `הפגישה "${title}" נמחקה בהצלחה` : `Meeting "${title}" deleted successfully`);
   };
@@ -258,7 +274,7 @@ export default function OrganizerDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setMeetingToDelete({ id: m.id, title: m.title });
+                                setMeetingToDelete({ id: m.id, title: m.title, slug: m.slug });
                               }}
                               className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
                               title="Delete meeting"

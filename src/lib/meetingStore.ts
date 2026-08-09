@@ -3,6 +3,7 @@ import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
+const DELETED_MEETINGS_KEY = 'meeting_scheduler_deleted_ids_v1';
 const LIVE_SYNC_CHANNEL_NAME = 'meeting_scheduler_live_sync_v1';
 
 export interface TopTimeSlot {
@@ -25,12 +26,44 @@ export function normalizeKey(key: string): string {
   }
 }
 
+export function getDeletedMeetingIds(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(DELETED_MEETINGS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function isMeetingDeleted(idOrSlug: string): boolean {
+  if (!idOrSlug) return false;
+  const deleted = getDeletedMeetingIds();
+  const norm = normalizeKey(idOrSlug);
+  return deleted.some((d) => normalizeKey(d) === norm);
+}
+
+export function markMeetingDeleted(idOrSlug: string) {
+  if (typeof window === 'undefined' || !idOrSlug) return;
+  try {
+    const deleted = getDeletedMeetingIds();
+    const norm = normalizeKey(idOrSlug);
+    if (!deleted.includes(norm)) {
+      deleted.push(norm);
+      localStorage.setItem(DELETED_MEETINGS_KEY, JSON.stringify(deleted));
+    }
+  } catch (err) {
+    console.warn('Failed to mark meeting deleted:', err);
+  }
+}
+
 export function getStoredMeetings(): Meeting[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(MEETINGS_LIST_KEY);
     if (raw) {
-      return JSON.parse(raw);
+      const parsed: Meeting[] = JSON.parse(raw);
+      return parsed.filter((m) => !isMeetingDeleted(m.id) && !isMeetingDeleted(m.slug));
     }
   } catch {
     // Fallback
@@ -68,6 +101,8 @@ export function deleteStoredMeeting(key: string) {
   if (typeof window === 'undefined' || !key) return;
   const norm = normalizeKey(key);
   try {
+    markMeetingDeleted(norm);
+
     const existing = getStoredMeetings();
     const matched = existing.find((m) => normalizeKey(m.id) === norm || normalizeKey(m.slug) === norm);
     const updated = existing.filter((m) => normalizeKey(m.id) !== norm && normalizeKey(m.slug) !== norm);
@@ -76,6 +111,8 @@ export function deleteStoredMeeting(key: string) {
     // Remove stored participant data for this meeting key
     localStorage.removeItem(`${STORAGE_KEY}_${norm}`);
     if (matched) {
+      markMeetingDeleted(matched.id);
+      markMeetingDeleted(matched.slug);
       localStorage.removeItem(`${STORAGE_KEY}_${normalizeKey(matched.id)}`);
       localStorage.removeItem(`${STORAGE_KEY}_${normalizeKey(matched.slug)}`);
     }
@@ -96,6 +133,7 @@ export function deleteStoredMeeting(key: string) {
 
 export function getStoredMeetingBySlug(slug: string): Meeting | null {
   const norm = normalizeKey(slug);
+  if (isMeetingDeleted(norm)) return null;
   const meetings = getStoredMeetings();
   return meetings.find((m) => normalizeKey(m.slug) === norm || normalizeKey(m.id) === norm) || null;
 }
@@ -103,6 +141,7 @@ export function getStoredMeetingBySlug(slug: string): Meeting | null {
 export function getStoredMeetingData(key: string): ParticipantWithDetails[] | null {
   if (typeof window === 'undefined' || !key) return null;
   const norm = normalizeKey(key);
+  if (isMeetingDeleted(norm)) return null;
   try {
     const raw = localStorage.getItem(`${STORAGE_KEY}_${norm}`);
     if (raw) {
@@ -119,252 +158,232 @@ export function getStoredMeetingData(key: string): ParticipantWithDetails[] | nu
   return null;
 }
 
-export function saveStoredMeetingData(key: string, participants: ParticipantWithDetails[]) {
+export function saveStoredMeetingData(key: string, data: ParticipantWithDetails[]) {
   if (typeof window === 'undefined' || !key) return;
   const norm = normalizeKey(key);
   try {
-    // 1. Get currently stored participants to perform deep merge
-    const currentlyStored = getStoredMeetingData(norm) || [];
-    const map = new Map<string, ParticipantWithDetails>();
+    // Deep map-based participant merging
+    const existing = getStoredMeetingData(norm) || [];
+    const participantMap = new Map<string, ParticipantWithDetails>();
 
-    // Index existing participants by email or ID
-    currentlyStored.forEach((p) => {
-      const pKey = p.profile?.email ? p.profile.email.toLowerCase() : p.id;
-      map.set(pKey, p);
+    existing.forEach((p) => {
+      const pKey = p.id || p.profile?.email || p.profile?.full_name || '';
+      if (pKey) participantMap.set(pKey, p);
     });
 
-    // Merge incoming participants
-    participants.forEach((p) => {
-      const pKey = p.profile?.email ? p.profile.email.toLowerCase() : p.id;
-      const existingP = map.get(pKey);
+    data.forEach((p) => {
+      const pKey = p.id || p.profile?.email || p.profile?.full_name || '';
+      if (pKey) {
+        if (participantMap.has(pKey)) {
+          const prev = participantMap.get(pKey)!;
+          const slotMap = new Map<string, AvailabilitySlot>();
+          (prev.availability || []).forEach((s) => {
+            const sKey = s.id || s.slot_key || `${s.start_time}_${s.end_time}`;
+            slotMap.set(sKey, s);
+          });
+          (p.availability || []).forEach((s) => {
+            const sKey = s.id || s.slot_key || `${s.start_time}_${s.end_time}`;
+            slotMap.set(sKey, s);
+          });
 
-      if (existingP) {
-        map.set(pKey, {
-          ...existingP,
-          ...p,
-          is_required: p.is_required !== undefined ? p.is_required : existingP.is_required,
-          profile: {
-            ...existingP.profile,
-            ...p.profile,
-          },
-          availability: p.availability && p.availability.length > 0 ? p.availability : existingP.availability || [],
-        });
-      } else {
-        map.set(pKey, p);
+          participantMap.set(pKey, {
+            ...prev,
+            ...p,
+            availability: Array.from(slotMap.values()),
+          });
+        } else {
+          participantMap.set(pKey, p);
+        }
       }
     });
 
-    let mergedParticipants = Array.from(map.values());
-
-    // Clean up legacy dummy fallback host if an actual host exists
-    if (mergedParticipants.length > 1 && mergedParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
-      mergedParticipants = mergedParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+    let merged = Array.from(participantMap.values());
+    if (merged.length > 1 && merged.some((p) => p.profile?.email !== 'host@company.com')) {
+      merged = merged.filter((p) => p.profile?.email !== 'host@company.com');
     }
 
-    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(mergedParticipants));
-
-    // Also sync to matching meeting ID or Slug
-    const meetings = getStoredMeetings();
-    const matched = meetings.find((m) => normalizeKey(m.id) === norm || normalizeKey(m.slug) === norm);
-    if (matched) {
-      const normId = normalizeKey(matched.id);
-      const normSlug = normalizeKey(matched.slug);
-      if (normId !== norm) {
-        localStorage.setItem(`${STORAGE_KEY}_${normId}`, JSON.stringify(mergedParticipants));
-      }
-      if (normSlug !== norm) {
-        localStorage.setItem(`${STORAGE_KEY}_${normSlug}`, JSON.stringify(mergedParticipants));
-      }
-    }
+    localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(merged));
 
     // Dispatch local custom event
     window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
 
-    // Broadcast cross-tab live sync message with full merged participants payload
+    // Broadcast across tabs
     if ('BroadcastChannel' in window) {
       const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
-      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm, participants: mergedParticipants });
+      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm });
       bc.close();
     }
   } catch (err) {
-    console.warn('Failed to save meeting data to localStorage:', err);
+    console.warn('Failed to save participant data to localStorage:', err);
   }
 }
 
-/**
- * Updates availability slots for a specific participant in a meeting
- */
 export function updateParticipantSlots(
   meetingKey: string,
   participantId: string,
-  guestProfile: { full_name: string; email: string; company?: string; phone_number?: string; role?: string },
-  slots: { start_time: string; end_time: string; slot_key?: string }[]
+  guestInfo: { full_name: string; email: string; company?: string; phone_number?: string; role?: string },
+  newSlots: AvailabilitySlot[]
 ) {
-  if (!meetingKey) return [];
   const normKey = normalizeKey(meetingKey);
+  const current = getStoredMeetingData(normKey) || [];
 
-  let existing = getStoredMeetingData(normKey) || [];
+  const existingIdx = current.findIndex(
+    (p) =>
+      p.id === participantId ||
+      (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase())
+  );
 
-  // Filter out legacy dummy fallback participant "host@company.com" if actual organizer exists
-  if (existing.some((p) => p.profile?.email !== 'host@company.com')) {
-    existing = existing.filter((p) => p.profile?.email !== 'host@company.com');
-  }
-
-  // Find or create participant by ID or Email
-  let pIndex = existing.findIndex((p) => p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === guestProfile.email.toLowerCase()));
-
-  const formattedSlots: AvailabilitySlot[] = slots.map((s, idx) => ({
-    id: `av-${Date.now()}-${idx}`,
-    participant_id: participantId,
-    slot_key: s.slot_key,
-    start_time: s.start_time,
-    end_time: s.end_time,
-  }));
-
-  if (pIndex >= 0) {
-    existing[pIndex].availability = formattedSlots;
-    if (guestProfile.full_name) {
-      existing[pIndex].profile = {
-        ...existing[pIndex].profile,
-        id: existing[pIndex].profile_id || `prof-${Date.now()}`,
-        email: guestProfile.email,
-        full_name: guestProfile.full_name,
-        company: guestProfile.company || null,
-        phone_number: guestProfile.phone_number || null,
-        is_organizer: existing[pIndex].profile?.is_organizer || false,
-      };
-    }
+  if (existingIdx >= 0) {
+    current[existingIdx] = {
+      ...current[existingIdx],
+      id: participantId,
+      profile: {
+        ...current[existingIdx].profile,
+        full_name: guestInfo.full_name,
+        email: guestInfo.email,
+        company: guestInfo.company || null,
+        phone_number: guestInfo.phone_number || null,
+        is_organizer: guestInfo.role === 'Organizer',
+      },
+      availability: newSlots,
+    };
   } else {
-    const newParticipant: ParticipantWithDetails = {
+    current.push({
       id: participantId,
       meeting_id: normKey,
-      profile_id: `prof-${Date.now()}`,
+      profile_id: `prof-${participantId}`,
       is_required: true,
       profile: {
-        id: `prof-${Date.now()}`,
-        email: guestProfile.email,
-        full_name: guestProfile.full_name,
-        company: guestProfile.company || null,
-        phone_number: guestProfile.phone_number || null,
-        is_organizer: false,
+        id: `prof-${participantId}`,
+        full_name: guestInfo.full_name,
+        email: guestInfo.email,
+        company: guestInfo.company || null,
+        phone_number: guestInfo.phone_number || null,
+        is_organizer: guestInfo.role === 'Organizer',
       },
-      availability: formattedSlots,
-    };
-    existing.push(newParticipant);
+      availability: newSlots,
+    });
   }
 
-  saveStoredMeetingData(normKey, existing);
-  return getStoredMeetingData(normKey) || existing;
+  saveStoredMeetingData(normKey, current);
 }
 
-export function computeMeetingStats(participants: ParticipantWithDetails[]) {
-  // Filter out legacy dummy fallback host if actual organizer exists
-  let clean = participants;
-  if (clean.length > 1 && clean.some((p) => p.profile?.email !== 'host@company.com')) {
-    clean = clean.filter((p) => p.profile?.email !== 'host@company.com');
-  }
+// Compute top 3 available time slots (90%+)
+export function computeMeetingStats(participants: ParticipantWithDetails[]): {
+  totalParticipants: number;
+  submittedParticipants: number;
+  bestMatchPct: number;
+  bestMatchSlot: string;
+  topTimeSlots: TopTimeSlot[];
+} {
+  const cleanParticipants = participants.filter((p) => p.profile?.email !== 'host@company.com');
+  const totalParticipants = cleanParticipants.length || 1;
+  const submittedParticipants = cleanParticipants.filter(
+    (p) => p.availability && p.availability.length > 0
+  ).length;
 
-  const total = clean.length;
-  const submitted = clean.filter((p) => p.availability && p.availability.length > 0).length;
-  
-  const matchPct = total > 0 ? Math.round((submitted / total) * 100) : 0;
+  const slotMap: Record<string, { available: Set<string>; date: Date; hours: number; minutes: number }> = {};
 
-  let bestSlotText = 'Pending Responses';
-  let bestCount = 0;
-  const candidateSlots: TopTimeSlot[] = [];
+  cleanParticipants.forEach((p) => {
+    if (p.availability && p.availability.length > 0) {
+      p.availability.forEach((av) => {
+        let slotKey = av.slot_key;
+        let d: Date;
 
-  if (clean.length > 0) {
-    const slotCounts: Record<string, number> = {};
-    clean.forEach((p) => {
-      if (p.availability) {
-        p.availability.forEach((av) => {
-          const key = av.slot_key || av.start_time;
-          slotCounts[key] = (slotCounts[key] || 0) + 1;
-        });
-      }
+        if (!slotKey && av.start_time) {
+          d = new Date(av.start_time);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          slotKey = `${y}-${m}-${day}_${timeStr}`;
+        } else if (slotKey) {
+          const [datePart, timePart] = slotKey.split('_');
+          const [yearStr, monthStr, dayStr] = datePart.split('-');
+          const [hoursStr, minutesStr] = timePart.split(':');
+          d = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10) - 1, parseInt(dayStr, 10), parseInt(hoursStr, 10), parseInt(minutesStr, 10));
+        } else {
+          return;
+        }
+
+        if (!slotMap[slotKey]) {
+          slotMap[slotKey] = {
+            available: new Set(),
+            date: d,
+            hours: d.getHours(),
+            minutes: d.getMinutes(),
+          };
+        }
+        slotMap[slotKey].available.add(p.id);
+      });
+    }
+  });
+
+  const slotsList = Object.entries(slotMap).map(([slotKey, data]) => {
+    const count = data.available.size;
+    const pct = Math.round((count / totalParticipants) * 100);
+
+    const endMinutes = data.minutes + 30;
+    const endHour = data.hours + Math.floor(endMinutes / 60);
+    const endMin = endMinutes % 60;
+
+    const formatTimeEn = (h: number, m: number) => {
+      const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      return `${displayH}:${m === 0 ? '00' : String(m).padStart(2, '0')} ${ampm}`;
+    };
+
+    const formatTimeHe = (h: number, m: number) => {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+
+    const dateStrEn = data.date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
     });
 
-    Object.entries(slotCounts).forEach(([key, count]) => {
-      const pct = Math.round((count / total) * 100);
-
-      // Extract date and time range
-      let dateStrEn = key;
-      let dateStrHe = key;
-      let timeRangeEn = '';
-      let timeRangeHe = '';
-
-      if (key.includes('_')) {
-        const [datePart, timePart] = key.split('_');
-        const [yearStr, monthStr, dayStr] = datePart.split('-');
-        const [hoursStr, minutesStr] = timePart.split(':');
-        
-        const year = parseInt(yearStr, 10);
-        const month = parseInt(monthStr, 10) - 1;
-        const day = parseInt(dayStr, 10);
-        const startH = parseInt(hoursStr, 10);
-        const startM = parseInt(minutesStr, 10);
-
-        const startDate = new Date(year, month, day, startH, startM);
-        const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
-
-        const endH = endDate.getHours();
-        const endM = endDate.getMinutes();
-
-        dateStrEn = startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        dateStrHe = startDate.toLocaleDateString('he-IL', { weekday: 'short', month: 'short', day: 'numeric' });
-
-        const fmt24 = (h: number, m: number) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        timeRangeHe = `${fmt24(startH, startM)} - ${fmt24(endH, endM)}`;
-
-        const fmt12 = (h: number, m: number) => {
-          const ampm = h >= 12 ? 'PM' : 'AM';
-          const dh = h > 12 ? h - 12 : h === 0 ? 12 : h;
-          const dm = m === 0 ? '00' : String(m).padStart(2, '0');
-          return `${dh}:${dm} ${ampm}`;
-        };
-        timeRangeEn = `${fmt12(startH, startM)} - ${fmt12(endH, endM)}`;
-
-        if (count > bestCount) {
-          bestCount = count;
-          bestSlotText = `${dateStrEn} ${fmt12(startH, startM)}`;
-        }
-      } else {
-        const d = new Date(key);
-        dateStrEn = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        dateStrHe = d.toLocaleDateString('he-IL', { weekday: 'short', month: 'short', day: 'numeric' });
-        timeRangeEn = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        timeRangeHe = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-
-        if (count > bestCount) {
-          bestCount = count;
-          bestSlotText = `${dateStrEn} ${timeRangeEn}`;
-        }
-      }
-
-      // Filter slots with 90% and above
-      if (pct >= 90) {
-        candidateSlots.push({
-          slotKey: key,
-          dateStrEn,
-          dateStrHe,
-          timeRangeEn,
-          timeRangeHe,
-          pct,
-          availableCount: count,
-          totalCount: total,
-        });
-      }
+    const dateStrHe = data.date.toLocaleDateString('he-IL', {
+      weekday: 'short',
+      month: 'numeric',
+      day: 'numeric',
     });
 
-    // Sort candidate slots by pct descending, then slotKey ascending
-    candidateSlots.sort((a, b) => b.pct - a.pct || a.slotKey.localeCompare(b.slotKey));
+    const timeRangeEn = `${formatTimeEn(data.hours, data.minutes)} - ${formatTimeEn(endHour, endMin)}`;
+    const timeRangeHe = `${formatTimeHe(data.hours, data.minutes)} - ${formatTimeHe(endHour, endMin)}`;
+
+    return {
+      slotKey,
+      dateStrEn,
+      dateStrHe,
+      timeRangeEn,
+      timeRangeHe,
+      pct,
+      availableCount: count,
+      totalCount: totalParticipants,
+    };
+  });
+
+  // Filter 90%+ matching slots and sort descending
+  const topTimeSlots = slotsList
+    .filter((s) => s.pct >= 90)
+    .sort((a, b) => b.pct - a.pct || b.availableCount - a.availableCount)
+    .slice(0, 3);
+
+  let bestMatchPct = 0;
+  let bestMatchSlot = 'Pending Responses';
+
+  if (slotsList.length > 0) {
+    const best = slotsList.sort((a, b) => b.pct - a.pct)[0];
+    bestMatchPct = best.pct;
+    bestMatchSlot = `${best.dateStrEn}, ${best.timeRangeEn}`;
   }
 
   return {
-    totalParticipants: total,
-    submittedParticipants: submitted,
-    bestMatchPct: matchPct > 0 ? matchPct : 100,
-    bestMatchSlot: bestSlotText,
-    topTimeSlots: candidateSlots.slice(0, 3), // Return Top 3 (90%+)
+    totalParticipants,
+    submittedParticipants,
+    bestMatchPct,
+    bestMatchSlot,
+    topTimeSlots,
   };
 }
