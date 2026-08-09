@@ -35,14 +35,17 @@ export function CalendarHeader({
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
             📅
           </div>
-          <div className="hidden sm:block">
-            <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="hidden sm:flex flex-col">
+            <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent leading-none">
               {t('brand.name')}
+            </span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-tight mt-0.5">
+              {t('brand.subtitle')}
             </span>
           </div>
         </Link>
 
-        <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-800 hidden sm:block" />
+        <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-800 hidden sm:block" />
 
         {/* Date Navigation Controls */}
         <div className="flex items-center gap-1.5">

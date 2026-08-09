@@ -6,6 +6,7 @@ export const translations = {
   en: {
     // Brand
     'brand.name': 'Meeting Scheduler',
+    'brand.subtitle': 'Multi-tenant Meeting Coordination Platform',
 
     // Header & Navigation
     'nav.dashboard': 'Organizer Dashboard',
@@ -136,6 +137,7 @@ export const translations = {
   he: {
     // Brand
     'brand.name': 'Meeting Scheduler',
+    'brand.subtitle': 'Multi-tenant Meeting Coordination Platform',
 
     // Header & Navigation
     'nav.dashboard': 'לוח בקרה למארגן',
