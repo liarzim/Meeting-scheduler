@@ -72,10 +72,21 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
         const { data, error } = await query.single();
 
         if (!error && data) {
-          setMeeting(data as Meeting);
+          let cleanTitle = data.title || '';
+          let cleanDesc = data.description || '';
+          if (cleanTitle.includes(':::')) {
+            const parts = cleanTitle.split(':::');
+            cleanTitle = parts[0];
+            cleanDesc = parts.slice(1).join(':::');
+          }
+
+          setMeeting({
+            ...data,
+            title: cleanTitle,
+            description: cleanDesc,
+          } as Meeting);
           setNotFound(false);
         } else {
-          // If not in DB and not in local storage -> Meeting was deleted or does not exist!
           setMeeting(null);
           setNotFound(true);
         }
@@ -118,17 +129,16 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
       <main className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex items-center justify-center p-6" dir={dir}>
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl transition-colors">
           <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-500 text-3xl mx-auto">
-            🚫
+            🗑️
           </div>
-
           <div className="space-y-2">
             <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
               {t('deleted.title')}
             </h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-              {t('deleted.message')}
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {t('deleted.subtitle')}
             </p>
-            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-950 font-mono text-xs text-rose-500 border border-slate-200 dark:border-slate-800 truncate mt-3">
+            <div className="font-mono text-xs text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 truncate mt-3">
               /{decodedSlug}
             </div>
           </div>
@@ -165,35 +175,36 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
             className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-800 text-xs font-bold transition-all flex items-center gap-2 shadow-sm"
           >
             <span>📊</span>
-            <span>{language === 'he' ? 'צפה במפת חום קבוצתית של כל המשתתפים' : 'View Group Availability Heatmap'}</span>
+            <span>{language === 'he' ? 'צפה במפת חום קבוצתית של כל המשתתפים' : 'View Group Heatmap of all participants'}</span>
           </Link>
         </header>
 
         {/* Stepper Progress Bar */}
-        <div className="flex items-center justify-center gap-4 text-xs font-semibold">
-          <span className={`px-3 py-1 rounded-full ${step === 'IDENTIFY' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-            1. {t('invitee.regBadge')}
+        <div className="flex items-center justify-center gap-2 text-xs font-semibold text-slate-500">
+          <span className={`px-3 py-1 rounded-full ${step === 'IDENTIFY' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800'}`}>
+            1. {t('invitee.step1')}
           </span>
-          <span className="text-slate-400">→</span>
-          <span className={`px-3 py-1 rounded-full ${step === 'CALENDAR' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-            2. {t('cal.title')}
+          <span>→</span>
+          <span className={`px-3 py-1 rounded-full ${step === 'CALENDAR' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800'}`}>
+            2. {t('invitee.step2')}
           </span>
-          <span className="text-slate-400">→</span>
-          <span className={`px-3 py-1 rounded-full ${step === 'CONFIRMATION' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'}`}>
-            3. {t('conf.title')}
+          <span>→</span>
+          <span className={`px-3 py-1 rounded-full ${step === 'CONFIRMATION' ? 'bg-blue-600 text-white' : 'bg-slate-200 dark:bg-slate-800'}`}>
+            3. {t('invitee.step3')}
           </span>
         </div>
 
-        {/* Step 1: Identification */}
+        {/* Step 1: Guest Identification Form */}
         {step === 'IDENTIFY' && (
           <GuestIdentificationForm
             meetingId={meeting.id}
             meetingTitle={meeting.title}
+            meetingDescription={meeting.description || undefined}
             onComplete={handleGuestComplete}
           />
         )}
 
-        {/* Step 2: Calendar Selection */}
+        {/* Step 2: Interactive Grid Calendar */}
         {step === 'CALENDAR' && (
           <InviteeCalendar
             meetingId={meeting.id}
@@ -201,36 +212,40 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
             participantId={participantId}
             guestInfo={guestInfo}
             meetingTitle={meeting.title}
+            meetingDescription={meeting.description || undefined}
             onSubmitted={handleCalendarSubmitted}
             onBack={() => setStep('IDENTIFY')}
           />
         )}
 
-        {/* Step 3: Confirmation */}
+        {/* Step 3: Success Confirmation Screen */}
         {step === 'CONFIRMATION' && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-8 max-w-lg mx-auto text-center space-y-6 shadow-xl dark:shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 text-3xl flex items-center justify-center mx-auto">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-8 max-w-lg mx-auto text-center space-y-6 shadow-xl dark:shadow-2xl transition-colors">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-500 text-3xl mx-auto">
               ✓
             </div>
             <div className="space-y-2">
-              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white">{t('conf.title')}</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t('conf.subtitle')}
+              <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                {t('confirm.title')}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t('confirm.subtitle')}
               </p>
             </div>
-            <div className="pt-4 flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={() => setStep('CALENDAR')}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold transition-colors"
-              >
-                {t('conf.editBtn')}
-              </button>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4">
               <Link
                 href={`/meetings/${meeting.slug}`}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow-md shadow-blue-600/20"
+                className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
               >
-                {t('conf.viewHeatmapBtn')}
+                <span>📊</span> {t('confirm.viewHeatmapBtn')}
               </Link>
+              <button
+                onClick={() => setStep('CALENDAR')}
+                className="w-full sm:w-auto px-5 py-3 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold text-xs transition-colors"
+              >
+                {t('confirm.editBtn')}
+              </button>
             </div>
           </div>
         )}

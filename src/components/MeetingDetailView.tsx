@@ -43,7 +43,7 @@ export function MeetingDetailView({
   // Load client-stored meeting title and details
   useEffect(() => {
     const storedMeeting = getStoredMeetingBySlug(initialMeeting.slug) || getStoredMeetingBySlug(initialMeeting.id);
-    if (storedMeeting && storedMeeting.title) {
+    if (storedMeeting) {
       setMeeting(storedMeeting);
     }
   }, [initialMeeting.slug, initialMeeting.id]);
@@ -73,13 +73,20 @@ export function MeetingDetailView({
         const { data: dbData, error: dbErr } = await query.single();
 
         if (!dbErr && dbData) {
-          if (dbData.title) {
-            setMeeting((prev) => ({
-              ...prev,
-              title: dbData.title,
-              status: dbData.status || prev.status,
-            }));
+          let cleanTitle = dbData.title || '';
+          let cleanDesc = dbData.description || '';
+          if (cleanTitle.includes(':::')) {
+            const parts = cleanTitle.split(':::');
+            cleanTitle = parts[0];
+            cleanDesc = parts.slice(1).join(':::');
           }
+
+          setMeeting((prev) => ({
+            ...prev,
+            title: cleanTitle,
+            description: cleanDesc || prev.description,
+            status: dbData.status || prev.status,
+          }));
 
           if (dbData.meeting_participants && dbData.meeting_participants.length > 0) {
             const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants
@@ -414,6 +421,7 @@ export function MeetingDetailView({
                 participantId={hostParticipant?.id || 'part-1'}
                 guestInfo={hostInfo}
                 meetingTitle={meeting.title}
+                meetingDescription={meeting.description || undefined}
                 onSubmitted={() => {
                   setIsEditingHostAvailability(false);
                   loadData();
@@ -443,6 +451,13 @@ export function MeetingDetailView({
                   <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
                     {meeting.title}
                   </h1>
+
+                  {/* Meeting Purpose / Description Header Display */}
+                  {meeting.description && (
+                    <p className="text-xs text-slate-600 dark:text-slate-300 max-w-2xl bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800 leading-relaxed">
+                      📌 <strong className="text-slate-800 dark:text-slate-200">{language === 'he' ? 'מטרת הפגישה:' : 'Purpose:'}</strong> {meeting.description}
+                    </p>
+                  )}
                 </div>
 
                 {/* Shareable Link Box & Manual Refresh */}

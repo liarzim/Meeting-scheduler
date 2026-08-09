@@ -13,6 +13,7 @@ export interface Meeting {
   id: string;
   organizer_id: string | null;
   title: string;
+  description?: string | null;
   slug: string;
   status: MeetingStatus;
 }

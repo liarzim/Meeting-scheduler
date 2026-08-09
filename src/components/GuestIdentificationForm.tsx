@@ -10,11 +10,17 @@ import { updateParticipantSlots, normalizeKey } from '@/lib/meetingStore';
 interface GuestIdentificationFormProps {
   meetingId: string;
   meetingTitle: string;
+  meetingDescription?: string;
   onComplete: (participantId: string, profileId: string, guestInfo: GuestInfo) => void;
 }
 
-export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }: GuestIdentificationFormProps) {
-  const { t, dir } = useLanguage();
+export function GuestIdentificationForm({
+  meetingId,
+  meetingTitle,
+  meetingDescription,
+  onComplete,
+}: GuestIdentificationFormProps) {
+  const { t, dir, language } = useLanguage();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
@@ -40,16 +46,18 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
     if (savedForMeeting) {
       try {
-        const parsed = JSON.parse(savedForMeeting) as GuestInfo;
-        if (parsed.full_name) setFullName(parsed.full_name);
-        if (parsed.email) setEmail(parsed.email);
-        if (parsed.company) setCompany(parsed.company);
-        if (parsed.phone_number) setPhone(parsed.phone_number);
-        if (parsed.role) setRole(parsed.role);
-        setAutoFilled(true);
-        return;
+        const parsed: GuestInfo = JSON.parse(savedForMeeting);
+        if (parsed && (parsed.full_name || parsed.email)) {
+          setFullName(parsed.full_name || '');
+          setEmail(parsed.email || '');
+          setCompany(parsed.company || '');
+          setPhone(parsed.phone_number || '');
+          setRole(parsed.role || '');
+          setAutoFilled(true);
+          return;
+        }
       } catch {
-        // Fallthrough if parse fails
+        // fall through if parse fails
       }
     }
 
@@ -159,7 +167,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-xl dark:shadow-2xl max-w-xl mx-auto space-y-6 text-slate-900 dark:text-slate-100 transition-colors" dir={dir}>
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl dark:shadow-2xl max-w-xl mx-auto space-y-6 text-slate-900 dark:text-slate-100 transition-colors" dir={dir}>
       <div className="flex items-center justify-between">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-semibold uppercase tracking-wider">
           {t('invitee.regBadge')}
@@ -168,10 +176,10 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
       </div>
 
       <div className="text-center space-y-2">
-        <h2 className="text-2xl font-extrabold text-slate-900 dark:text-white">
+        <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
           {t('invitee.joinTitle')} &quot;{cleanTitle}&quot;
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           {t('invitee.regSubtitle')}
         </p>
 
@@ -186,9 +194,22 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
         )}
       </div>
 
+      {/* Meeting Purpose / Description Card (Prominently displayed to invitees) */}
+      {meetingDescription && (
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/60 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800/80 text-xs space-y-1.5 shadow-sm">
+          <div className="font-bold flex items-center gap-1.5 text-blue-700 dark:text-blue-300">
+            <span>📌</span>
+            <span>{language === 'he' ? 'מטרת הפגישה:' : 'Meeting Purpose:'}</span>
+          </div>
+          <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line text-xs font-medium">
+            {meetingDescription}
+          </p>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
             {t('invitee.nameLabel')}
           </label>
           <input
@@ -197,12 +218,12 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
             placeholder={t('invitee.namePlaceholder')}
-            className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1">
             {t('invitee.emailLabel')}
           </label>
           <input
@@ -211,7 +232,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t('invitee.emailPlaceholder')}
-            className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
@@ -225,7 +246,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
               value={company}
               onChange={(e) => setCompany(e.target.value)}
               placeholder={t('invitee.companyPlaceholder')}
-              className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
 
@@ -238,7 +259,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder={t('invitee.phonePlaceholder')}
-              className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
         </div>
@@ -252,16 +273,16 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             value={role}
             onChange={(e) => setRole(e.target.value)}
             placeholder={t('invitee.rolePlaceholder')}
-            className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
         <button
           type="submit"
           disabled={isSubmitting || !fullName.trim() || !email.trim()}
-          className="w-full py-3 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/30 transition-all disabled:opacity-50 mt-4"
+          className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-sm transition-all shadow-lg shadow-blue-600/30 disabled:opacity-50 mt-2"
         >
-          {isSubmitting ? '...' : t('invitee.continueBtn')}
+          {isSubmitting ? (language === 'he' ? 'שומר פרטים...' : 'Saving...') : `➔ ${t('invitee.continueBtn')}`}
         </button>
       </form>
     </div>

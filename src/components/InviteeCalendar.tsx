@@ -16,6 +16,7 @@ interface InviteeCalendarProps {
   participantId: string;
   guestInfo: GuestInfo;
   meetingTitle: string;
+  meetingDescription?: string;
   onSubmitted: () => void;
   onBack: () => void;
 }
@@ -44,6 +45,7 @@ export function InviteeCalendar({
   participantId,
   guestInfo,
   meetingTitle,
+  meetingDescription,
   onSubmitted,
   onBack,
 }: InviteeCalendarProps) {
@@ -528,6 +530,11 @@ export function InviteeCalendar({
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {t('cal.participantLabel')}: <span className="font-semibold text-slate-800 dark:text-slate-200">{guestInfo.full_name}</span> ({guestInfo.email})
           </p>
+          {meetingDescription && (
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-2 bg-blue-50/60 dark:bg-blue-950/30 p-2.5 rounded-xl border border-blue-200/80 dark:border-blue-800/50 max-w-xl leading-relaxed">
+              📌 <strong className="text-blue-700 dark:text-blue-300">{language === 'he' ? 'מטרת הפגישה:' : 'Purpose:'}</strong> {meetingDescription}
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-3 w-full sm:w-auto">
