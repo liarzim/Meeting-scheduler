@@ -245,13 +245,23 @@ export default function OrganizerDashboard() {
 
         {/* Content Area: Meetings List & Dashboard */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
-          <div className="border-b border-slate-200 dark:border-slate-800 pb-6">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
-              {t('dashboard.title')}
-            </h1>
-            <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs md:text-sm">
-              {t('dashboard.subtitle')}
-            </p>
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
+                {t('dashboard.title')}
+              </h1>
+              <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs md:text-sm">
+                {t('dashboard.subtitle')}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold text-xs md:text-sm transition-all shadow-lg shadow-blue-600/30 flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <span>✨</span>
+              <span>{language === 'he' ? '+ צור פגישה חדשה' : '+ Create New Meeting'}</span>
+            </button>
           </div>
 
           {/* Meetings Cards Grid */}
