@@ -51,6 +51,7 @@ export function InviteeCalendar({
   const [weekOffset, setWeekOffset] = useState(0);
   const [timezone, setTimezone] = useState('');
   const [viewMode, setViewMode] = useState<'CALENDAR' | 'HEATMAP'>('CALENDAR');
+  const isLoadingRef = useRef(false);
 
   // All group participants state
   const [groupParticipants, setGroupParticipants] = useState<ParticipantWithDetails[]>([]);
@@ -60,102 +61,107 @@ export function InviteeCalendar({
   // Load existing group participants & availability
   const loadGroupAvailability = useCallback(async () => {
     const key = meetingId || meetingSlug || '';
-    if (!key) return;
+    if (!key || isLoadingRef.current) return;
+    isLoadingRef.current = true;
 
-    let loaded: ParticipantWithDetails[] = [];
-
-    // 1. Fetch from local meetingStore
-    const stored = getStoredMeetingData(key) || getStoredMeetingData(normalizeKey(key)) || [];
-    if (stored.length > 0) {
-      loaded = stored;
-    }
-
-    // 2. Fetch from Supabase DB
     try {
-      const normKey = normalizeKey(key);
-      const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
-        .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
-        .or(`id.eq.${normKey},slug.eq.${normKey}`)
-        .single();
+      let loaded: ParticipantWithDetails[] = [];
 
-      if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-        const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-          id: mp.id,
-          meeting_id: mp.meeting_id,
-          profile_id: mp.profile_id,
-          is_required: mp.is_required !== false,
-          profile: mp.profiles,
-          availability: (mp.availability_slots || []).map((s: any) => {
-            let slotKey = s.slot_key;
-            if (!slotKey && s.start_time) {
-              const d = new Date(s.start_time);
-              const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-              slotKey = `${getDateKey(d)}_${timeStr}`;
-            }
-            return { ...s, slot_key: slotKey };
-          }),
-        }));
+      // 1. Fetch from local meetingStore
+      const stored = getStoredMeetingData(key) || getStoredMeetingData(normalizeKey(key)) || [];
+      if (stored.length > 0) {
+        loaded = stored;
+      }
 
-        // Merge DB with local
-        if (loaded.length > 0) {
-          dbParticipants.forEach((dp) => {
-            const existingIdx = loaded.findIndex(
-              (lp) => lp.id === dp.id || (lp.profile?.email && dp.profile?.email && lp.profile.email.toLowerCase() === dp.profile.email.toLowerCase())
-            );
-            if (existingIdx >= 0) {
-              // Merge slots
-              const localSlots = loaded[existingIdx].availability || [];
-              const dbSlots = dp.availability || [];
-              const slotMap = new Map();
-              dbSlots.forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
-              localSlots.forEach((s: any) => {
-                const sKey = s.slot_key || s.start_time;
-                if (!slotMap.has(sKey)) slotMap.set(sKey, s);
-              });
-              loaded[existingIdx] = {
-                ...dp,
-                availability: Array.from(slotMap.values()),
-              };
-            } else {
-              loaded.push(dp);
-            }
-          });
-        } else {
-          loaded = dbParticipants;
+      // 2. Fetch from Supabase DB
+      try {
+        const normKey = normalizeKey(key);
+        const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
+          .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
+          .or(`id.eq.${normKey},slug.eq.${normKey}`)
+          .single();
+
+        if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
+          const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+            id: mp.id,
+            meeting_id: mp.meeting_id,
+            profile_id: mp.profile_id,
+            is_required: mp.is_required !== false,
+            profile: mp.profiles,
+            availability: (mp.availability_slots || []).map((s: any) => {
+              let slotKey = s.slot_key;
+              if (!slotKey && s.start_time) {
+                const d = new Date(s.start_time);
+                const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                slotKey = `${getDateKey(d)}_${timeStr}`;
+              }
+              return { ...s, slot_key: slotKey };
+            }),
+          }));
+
+          // Merge DB with local
+          if (loaded.length > 0) {
+            dbParticipants.forEach((dp) => {
+              const existingIdx = loaded.findIndex(
+                (lp) => lp.id === dp.id || (lp.profile?.email && dp.profile?.email && lp.profile.email.toLowerCase() === dp.profile.email.toLowerCase())
+              );
+              if (existingIdx >= 0) {
+                // Merge slots
+                const localSlots = loaded[existingIdx].availability || [];
+                const dbSlots = dp.availability || [];
+                const slotMap = new Map();
+                dbSlots.forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
+                localSlots.forEach((s: any) => {
+                  const sKey = s.slot_key || s.start_time;
+                  if (!slotMap.has(sKey)) slotMap.set(sKey, s);
+                });
+                loaded[existingIdx] = {
+                  ...dp,
+                  availability: Array.from(slotMap.values()),
+                };
+              } else {
+                loaded.push(dp);
+              }
+            });
+          } else {
+            loaded = dbParticipants;
+          }
+        }
+      } catch (err) {
+        console.warn('Group availability fetch fallback:', err);
+      }
+
+      // Clean up legacy dummy host
+      if (loaded.length > 1 && loaded.some((p) => p.profile?.email !== 'host@company.com')) {
+        loaded = loaded.filter((p) => p.profile?.email !== 'host@company.com');
+      }
+
+      setGroupParticipants(loaded);
+
+      // Populate user's own existing slots if present
+      const selfParticipant = loaded.find(
+        (p) =>
+          p.id === participantId ||
+          (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase())
+      );
+
+      if (selfParticipant && selfParticipant.availability && selfParticipant.availability.length > 0) {
+        const existingKeys = new Set<string>();
+        selfParticipant.availability.forEach((av) => {
+          if (av.slot_key) {
+            existingKeys.add(av.slot_key);
+          } else if (av.start_time) {
+            const d = new Date(av.start_time);
+            const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+            existingKeys.add(`${getDateKey(d)}_${timeStr}`);
+          }
+        });
+        if (existingKeys.size > 0) {
+          setSelectedSlots(existingKeys);
         }
       }
-    } catch (err) {
-      console.warn('Group availability fetch fallback:', err);
-    }
-
-    // Clean up legacy dummy host
-    if (loaded.length > 1 && loaded.some((p) => p.profile?.email !== 'host@company.com')) {
-      loaded = loaded.filter((p) => p.profile?.email !== 'host@company.com');
-    }
-
-    setGroupParticipants(loaded);
-
-    // Populate user's own existing slots if present
-    const selfParticipant = loaded.find(
-      (p) =>
-        p.id === participantId ||
-        (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase())
-    );
-
-    if (selfParticipant && selfParticipant.availability && selfParticipant.availability.length > 0) {
-      const existingKeys = new Set<string>();
-      selfParticipant.availability.forEach((av) => {
-        if (av.slot_key) {
-          existingKeys.add(av.slot_key);
-        } else if (av.start_time) {
-          const d = new Date(av.start_time);
-          const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-          existingKeys.add(`${getDateKey(d)}_${timeStr}`);
-        }
-      });
-      if (existingKeys.size > 0) {
-        setSelectedSlots(existingKeys);
-      }
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [meetingId, meetingSlug, participantId, guestInfo.email]);
 
@@ -163,37 +169,42 @@ export function InviteeCalendar({
     loadGroupAvailability();
   }, [loadGroupAvailability]);
 
-  // Real-time live sync across tabs and Supabase subscriptions
+  // Real-time live sync across tabs and Supabase subscriptions with debounce
   useEffect(() => {
-    const handleSync = () => {
-      loadGroupAvailability();
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedSync = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadGroupAvailability();
+      }, 300);
     };
 
-    window.addEventListener('meeting_availability_updated', handleSync);
-    window.addEventListener('storage', handleSync);
+    window.addEventListener('meeting_availability_updated', debouncedSync);
+    window.addEventListener('storage', debouncedSync);
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
       bc.onmessage = () => {
-        handleSync();
+        debouncedSync();
       };
     }
 
     const normKey = normalizeKey(meetingId || meetingSlug || '');
     const channel = supabase
-      .channel(`live_invitee_${normKey}`)
+      .channel(`live_inv_${normKey}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
-        handleSync();
+        debouncedSync();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
-        handleSync();
+        debouncedSync();
       })
       .subscribe();
 
     return () => {
-      window.removeEventListener('meeting_availability_updated', handleSync);
-      window.removeEventListener('storage', handleSync);
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('meeting_availability_updated', debouncedSync);
+      window.removeEventListener('storage', debouncedSync);
       if (bc) bc.close();
       supabase.removeChannel(channel);
     };

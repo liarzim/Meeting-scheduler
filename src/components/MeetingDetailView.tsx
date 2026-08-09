@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Meeting } from '@/types';
@@ -33,6 +33,7 @@ export function MeetingDetailView({
   const [copied, setCopied] = useState(false);
   const [shareableUrl, setShareableUrl] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const isLoadingRef = useRef(false);
 
   useEffect(() => {
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
@@ -47,78 +48,94 @@ export function MeetingDetailView({
   }, [initialMeeting.slug, initialMeeting.id]);
 
   const loadData = useCallback(async () => {
-    let finalParticipants: ParticipantWithDetails[] = [];
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
 
-    // 1. Fetch from local meetingStore first
-    const stored =
-      getStoredMeetingData(meeting.id) ||
-      getStoredMeetingData(meeting.slug) ||
-      getStoredMeetingData(decodeURIComponent(meeting.slug)) ||
-      [];
-
-    if (stored && stored.length > 0) {
-      finalParticipants = stored;
-    }
-
-    // 2. Fetch live data from Supabase DB and merge
     try {
-      const normSlug = normalizeKey(meeting.slug);
-      const normId = normalizeKey(meeting.id);
+      let finalParticipants: ParticipantWithDetails[] = [];
 
-      const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
-        .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
-        .or(`id.eq.${normId},slug.eq.${normSlug}`)
-        .single();
+      // 1. Fetch from local meetingStore first
+      const stored =
+        getStoredMeetingData(meeting.id) ||
+        getStoredMeetingData(meeting.slug) ||
+        getStoredMeetingData(decodeURIComponent(meeting.slug)) ||
+        [];
 
-      if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-        let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-          id: mp.id,
-          meeting_id: mp.meeting_id,
-          profile_id: mp.profile_id,
-          is_required: mp.is_required !== false,
-          profile: mp.profiles,
-          availability: mp.availability_slots || [],
-        }));
-
-        // Merge local availability into dbParticipants if DB slots are empty
-        if (finalParticipants.length > 0) {
-          dbParticipants = dbParticipants.map((dbP) => {
-            const localP = finalParticipants.find(
-              (lp) =>
-                lp.id === dbP.id ||
-                (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
-            );
-            if (localP && localP.availability && localP.availability.length > 0) {
-              if (!dbP.availability || dbP.availability.length === 0) {
-                return { ...dbP, availability: localP.availability };
-              }
-            }
-            return dbP;
-          });
-
-          // Include local participants that DB doesn't have yet
-          finalParticipants.forEach((lp) => {
-            if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
-              dbParticipants.push(lp);
-            }
-          });
-        }
-
-        finalParticipants = dbParticipants;
+      if (stored && stored.length > 0) {
+        finalParticipants = stored;
       }
-    } catch (err) {
-      console.warn('Supabase DB fetch fallback:', err);
-    }
 
-    // Clean up legacy dummy fallback host if an actual host exists
-    if (finalParticipants.length > 1 && finalParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
-      finalParticipants = finalParticipants.filter((p) => p.profile?.email !== 'host@company.com');
-    }
+      // 2. Fetch live data from Supabase DB and merge
+      try {
+        const normSlug = normalizeKey(meeting.slug);
+        const normId = normalizeKey(meeting.id);
 
-    if (finalParticipants.length > 0) {
-      setParticipants(finalParticipants);
-      saveStoredMeetingData(meeting.id, finalParticipants);
-      saveStoredMeetingData(meeting.slug, finalParticipants);
+        const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
+          .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
+          .or(`id.eq.${normId},slug.eq.${normSlug}`)
+          .single();
+
+        if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
+          let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+            id: mp.id,
+            meeting_id: mp.meeting_id,
+            profile_id: mp.profile_id,
+            is_required: mp.is_required !== false,
+            profile: mp.profiles,
+            availability: (mp.availability_slots || []).map((s: any) => {
+              let slotKey = s.slot_key;
+              if (!slotKey && s.start_time) {
+                const d = new Date(s.start_time);
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                slotKey = `${y}-${m}-${day}_${timeStr}`;
+              }
+              return { ...s, slot_key: slotKey };
+            }),
+          }));
+
+          // Merge local availability into dbParticipants if DB slots are empty
+          if (finalParticipants.length > 0) {
+            dbParticipants = dbParticipants.map((dbP) => {
+              const localP = finalParticipants.find(
+                (lp) =>
+                  lp.id === dbP.id ||
+                  (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
+              );
+              if (localP && localP.availability && localP.availability.length > 0) {
+                if (!dbP.availability || dbP.availability.length === 0) {
+                  return { ...dbP, availability: localP.availability };
+                }
+              }
+              return dbP;
+            });
+
+            // Include local participants that DB doesn't have yet
+            finalParticipants.forEach((lp) => {
+              if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
+                dbParticipants.push(lp);
+              }
+            });
+          }
+
+          finalParticipants = dbParticipants;
+        }
+      } catch (err) {
+        console.warn('Supabase DB fetch notice:', err);
+      }
+
+      // Clean up legacy dummy fallback host if an actual host exists
+      if (finalParticipants.length > 1 && finalParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
+        finalParticipants = finalParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+      }
+
+      if (finalParticipants.length > 0) {
+        setParticipants(finalParticipants);
+      }
+    } finally {
+      isLoadingRef.current = false;
     }
   }, [meeting.id, meeting.slug]);
 
@@ -127,37 +144,43 @@ export function MeetingDetailView({
     loadData();
   }, [loadData]);
 
-  // Listen for real-time live availability submissions across all tabs & Supabase Realtime
+  // Listen for real-time live availability submissions with debounce
   useEffect(() => {
-    const handleAvailabilityUpdate = () => {
-      loadData();
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedUpdate = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        loadData();
+      }, 300);
     };
 
-    window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
-    window.addEventListener('storage', handleAvailabilityUpdate);
+    window.addEventListener('meeting_availability_updated', debouncedUpdate);
+    window.addEventListener('storage', debouncedUpdate);
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
       bc.onmessage = () => {
-        handleAvailabilityUpdate();
+        debouncedUpdate();
       };
     }
 
     // Supabase Realtime subscription
+    const normSlug = normalizeKey(meeting.slug);
     const channel = supabase
-      .channel(`meeting_realtime_${normalizeKey(meeting.slug)}`)
+      .channel(`meeting_rt_${normSlug}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
-        handleAvailabilityUpdate();
+        debouncedUpdate();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
-        handleAvailabilityUpdate();
+        debouncedUpdate();
       })
       .subscribe();
 
     return () => {
-      window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
-      window.removeEventListener('storage', handleAvailabilityUpdate);
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('meeting_availability_updated', debouncedUpdate);
+      window.removeEventListener('storage', debouncedUpdate);
       if (bc) bc.close();
       supabase.removeChannel(channel);
     };
@@ -171,9 +194,10 @@ export function MeetingDetailView({
 
   const confirmDeleteMeeting = async () => {
     try {
+      await (supabase.from('meeting_participants') as any).delete().eq('meeting_id', meeting.id);
       await (supabase.from('meetings') as any).delete().or(`id.eq.${meeting.id},slug.eq.${meeting.slug}`);
     } catch (err) {
-      console.warn('Supabase delete error:', err);
+      console.warn('Supabase delete warning:', err);
     }
 
     deleteStoredMeeting(meeting.id);
@@ -194,14 +218,14 @@ export function MeetingDetailView({
   };
 
   const handleAddParticipant = (name: string, email: string) => {
-    const newId = `part-${Date.now()}`;
+    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
     const newParticipant: ParticipantWithDetails = {
       id: newId,
       meeting_id: meeting.id,
-      profile_id: `prof-${Date.now()}`,
+      profile_id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`,
       is_required: true,
       profile: {
-        id: `prof-${Date.now()}`,
+        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`,
         email: email,
         full_name: name,
         company: null,

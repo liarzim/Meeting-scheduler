@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
@@ -35,8 +35,12 @@ export default function OrganizerDashboard() {
 
   // Delete modal state
   const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string; slug?: string } | null>(null);
+  const isRefreshingRef = useRef(false);
 
-  const refreshMeetings = async () => {
+  const refreshMeetings = useCallback(async () => {
+    if (isRefreshingRef.current) return;
+    isRefreshingRef.current = true;
+
     try {
       const stored = getStoredMeetings();
       const { data, error } = await supabase
@@ -91,47 +95,52 @@ export default function OrganizerDashboard() {
       );
     } finally {
       setLoading(false);
+      isRefreshingRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
     refreshMeetings();
-  }, []);
+  }, [refreshMeetings]);
 
-  // Listen for real-time live availability submissions across all tabs
+  // Listen for real-time live availability submissions with debounce
   useEffect(() => {
-    const handleAvailabilityUpdate = () => {
-      refreshMeetings();
+    let timeoutId: NodeJS.Timeout | null = null;
+    const debouncedRefresh = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        refreshMeetings();
+      }, 300);
     };
 
-    window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
-    window.addEventListener('meetings_list_updated', refreshMeetings);
-    window.addEventListener('storage', handleAvailabilityUpdate);
+    window.addEventListener('meeting_availability_updated', debouncedRefresh);
+    window.addEventListener('meetings_list_updated', debouncedRefresh);
+    window.addEventListener('storage', debouncedRefresh);
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
       bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
-      bc.postMessage({ type: 'CHECK' });
       bc.onmessage = () => {
-        handleAvailabilityUpdate();
+        debouncedRefresh();
       };
     }
 
     const channel = supabase
-      .channel('realtime:availability_slots')
+      .channel('rt_dashboard_slots')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
-        handleAvailabilityUpdate();
+        debouncedRefresh();
       })
       .subscribe();
 
     return () => {
-      window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
-      window.removeEventListener('meetings_list_updated', refreshMeetings);
-      window.removeEventListener('storage', handleAvailabilityUpdate);
+      if (timeoutId) clearTimeout(timeoutId);
+      window.removeEventListener('meeting_availability_updated', debouncedRefresh);
+      window.removeEventListener('meetings_list_updated', debouncedRefresh);
+      window.removeEventListener('storage', debouncedRefresh);
       if (bc) bc.close();
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [refreshMeetings]);
 
   const handleCreateSuccess = (newMeeting: Meeting) => {
     const extendedNew: ExtendedMeeting = {
