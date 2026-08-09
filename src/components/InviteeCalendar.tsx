@@ -85,13 +85,38 @@ export function InviteeCalendar({
           profile_id: mp.profile_id,
           is_required: mp.is_required !== false,
           profile: mp.profiles,
-          availability: mp.availability_slots || [],
+          availability: (mp.availability_slots || []).map((s: any) => {
+            let slotKey = s.slot_key;
+            if (!slotKey && s.start_time) {
+              const d = new Date(s.start_time);
+              const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+              slotKey = `${getDateKey(d)}_${timeStr}`;
+            }
+            return { ...s, slot_key: slotKey };
+          }),
         }));
 
         // Merge DB with local
         if (loaded.length > 0) {
           dbParticipants.forEach((dp) => {
-            if (!loaded.some((lp) => lp.id === dp.id || (lp.profile?.email && dp.profile?.email && lp.profile.email.toLowerCase() === dp.profile.email.toLowerCase()))) {
+            const existingIdx = loaded.findIndex(
+              (lp) => lp.id === dp.id || (lp.profile?.email && dp.profile?.email && lp.profile.email.toLowerCase() === dp.profile.email.toLowerCase())
+            );
+            if (existingIdx >= 0) {
+              // Merge slots
+              const localSlots = loaded[existingIdx].availability || [];
+              const dbSlots = dp.availability || [];
+              const slotMap = new Map();
+              dbSlots.forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
+              localSlots.forEach((s: any) => {
+                const sKey = s.slot_key || s.start_time;
+                if (!slotMap.has(sKey)) slotMap.set(sKey, s);
+              });
+              loaded[existingIdx] = {
+                ...dp,
+                availability: Array.from(slotMap.values()),
+              };
+            } else {
               loaded.push(dp);
             }
           });
@@ -138,6 +163,42 @@ export function InviteeCalendar({
     loadGroupAvailability();
   }, [loadGroupAvailability]);
 
+  // Real-time live sync across tabs and Supabase subscriptions
+  useEffect(() => {
+    const handleSync = () => {
+      loadGroupAvailability();
+    };
+
+    window.addEventListener('meeting_availability_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    let bc: BroadcastChannel | null = null;
+    if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+      bc = new BroadcastChannel('meeting_scheduler_live_sync_v1');
+      bc.onmessage = () => {
+        handleSync();
+      };
+    }
+
+    const normKey = normalizeKey(meetingId || meetingSlug || '');
+    const channel = supabase
+      .channel(`live_invitee_${normKey}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
+        handleSync();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
+        handleSync();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('meeting_availability_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+      if (bc) bc.close();
+      supabase.removeChannel(channel);
+    };
+  }, [loadGroupAvailability, meetingId, meetingSlug]);
+
   // Index other participants' availability by slotKey
   const slotOccupancy = useMemo(() => {
     const map: Record<string, { count: number; names: string[] }> = {};
@@ -172,6 +233,24 @@ export function InviteeCalendar({
     });
 
     return map;
+  }, [groupParticipants, participantId, guestInfo.email]);
+
+  // List of other participants who have submitted availability
+  const otherParticipantsWithSlots = useMemo(() => {
+    return groupParticipants
+      .filter((p) => {
+        const isSelf =
+          p.id === participantId ||
+          (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase());
+        return !isSelf;
+      })
+      .map((p) => ({
+        id: p.id,
+        name: p.profile?.full_name || p.profile?.email || 'Participant',
+        email: p.profile?.email || '',
+        isHost: p.profile?.is_organizer || false,
+        slotsCount: p.availability?.length || 0,
+      }));
   }, [groupParticipants, participantId, guestInfo.email]);
 
   const isPastSlot = useCallback((dayDate: Date, totalMinutes: number) => {
@@ -286,7 +365,7 @@ export function InviteeCalendar({
         const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
 
         return {
-          id: `av-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `av-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
           participant_id: participantId,
           start_time: startDate.toISOString(),
           end_time: endDate.toISOString(),
@@ -297,7 +376,7 @@ export function InviteeCalendar({
       // 1. Update local meetingStore with deep participant availability merging
       updateParticipantSlots(finalMeetingId, participantId, guestInfo, slotsToInsert);
 
-      // 2. Persist to Supabase DB if accessible
+      // 2. Persist to Supabase DB
       try {
         const normKey = normalizeKey(finalMeetingId);
         const { data: dbData } = await (supabase.from('meetings') as any)
@@ -307,45 +386,78 @@ export function InviteeCalendar({
 
         const activeMeetingId = dbData?.id || normKey;
 
-        // Upsert Profile
-        const profileData = {
-          id: participantId.startsWith('part-') ? undefined : participantId,
-          email: guestInfo.email,
-          full_name: guestInfo.full_name,
-          company: guestInfo.company || null,
-          phone_number: guestInfo.phone_number || null,
-          is_organizer: guestInfo.role === 'Organizer',
-        };
-
+        // Upsert Profile in Supabase
         const { data: profResult } = await (supabase.from('profiles') as any)
-          .upsert([profileData], { onConflict: 'email' })
+          .upsert(
+            [
+              {
+                email: guestInfo.email,
+                full_name: guestInfo.full_name,
+                company: guestInfo.company || null,
+                phone_number: guestInfo.phone_number || null,
+                is_organizer: guestInfo.role === 'Organizer',
+              },
+            ],
+            { onConflict: 'email' }
+          )
           .select()
           .single();
 
-        const profileId = profResult?.id || profileData.id;
+        const profileId = profResult?.id;
 
-        // Upsert Participant
         if (profileId) {
-          const participantData = {
-            id: participantId,
-            meeting_id: activeMeetingId,
-            profile_id: profileId,
-            is_required: true,
-          };
+          // Look up or upsert participant with valid UUID
+          const { data: existingPart } = await (supabase.from('meeting_participants') as any)
+            .select('id')
+            .eq('meeting_id', activeMeetingId)
+            .eq('profile_id', profileId)
+            .maybeSingle();
 
-          await (supabase.from('meeting_participants') as any)
-            .upsert([participantData], { onConflict: 'id' });
+          let targetParticipantId = existingPart?.id;
 
-          // Insert Availability Slots
-          if (slotsToInsert.length > 0) {
-            const dbPayload = slotsToInsert.map((s) => ({
-              id: s.id,
-              participant_id: participantId,
-              start_time: s.start_time,
-              end_time: s.end_time,
-            }));
+          if (!targetParticipantId) {
+            const validPartUUID =
+              participantId && participantId.length === 36 && !participantId.startsWith('part-')
+                ? participantId
+                : typeof crypto !== 'undefined' && crypto.randomUUID
+                ? crypto.randomUUID()
+                : participantId;
 
-            await (supabase.from('availability_slots') as any).insert(dbPayload);
+            const { data: newPart } = await (supabase.from('meeting_participants') as any)
+              .upsert(
+                [
+                  {
+                    id: validPartUUID,
+                    meeting_id: activeMeetingId,
+                    profile_id: profileId,
+                    is_required: true,
+                  },
+                ],
+                { onConflict: 'id' }
+              )
+              .select()
+              .single();
+
+            targetParticipantId = newPart?.id || validPartUUID;
+          }
+
+          if (targetParticipantId) {
+            // Delete previous slots for this participant to avoid duplicates
+            await (supabase.from('availability_slots') as any)
+              .delete()
+              .eq('participant_id', targetParticipantId);
+
+            // Insert new slots with valid UUIDs
+            if (slotsToInsert.length > 0) {
+              const dbPayload = slotsToInsert.map((s) => ({
+                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : s.id,
+                participant_id: targetParticipantId,
+                start_time: s.start_time,
+                end_time: s.end_time,
+              }));
+
+              await (supabase.from('availability_slots') as any).insert(dbPayload);
+            }
           }
         }
       } catch (dbErr) {
@@ -471,26 +583,65 @@ export function InviteeCalendar({
             </div>
           </div>
 
+          {/* Group Participants Who Already Submitted Availability */}
+          {otherParticipantsWithSlots.length > 0 && (
+            <div className="p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/50 space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                <div className="flex items-center gap-2">
+                  <span>👥</span>
+                  <span>
+                    {language === 'he'
+                      ? `משתתפים שכבר הגישו זמינות (${otherParticipantsWithSlots.length}):`
+                      : `Teammates Who Submitted Availability (${otherParticipantsWithSlots.length}):`}
+                  </span>
+                </div>
+                <span className="text-[11px] font-normal text-indigo-600 dark:text-indigo-400">
+                  {language === 'he' ? 'זמינותם מודגשת ביומן להלן' : 'Their slots are highlighted below'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {otherParticipantsWithSlots.map((p) => (
+                  <div
+                    key={p.id}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-indigo-200 dark:border-indigo-800/80 shadow-sm text-xs font-medium text-slate-800 dark:text-slate-200"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                    <span className="font-bold">{p.name}</span>
+                    {p.isHost && (
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                        {t('detail.hostTag')}
+                      </span>
+                    )}
+                    <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                      ({p.slotsCount} {language === 'he' ? 'משבצות' : 'slots'})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Group Availability Indicator Legend */}
           <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="space-y-1">
               <div className="font-bold flex items-center gap-2">
                 <span>💡</span>
-                <span>{language === 'he' ? 'זמינות משתתפים קיימת בקבוצה:' : 'Live Group Availability Preview:'}</span>
+                <span>{language === 'he' ? 'זמינות משתתפים קיימת ביומן:' : 'Live Group Availability on Grid:'}</span>
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-400">
                 {language === 'he'
-                  ? 'משבצות עם סמל 👥 מציגות משתתפים נוספים שסימנו זמינות. לחץ על משבצת כדי לבחור אותה עבורך!'
-                  : 'Slots marked with 👥 show other participants available. Click any slot to add your availability!'}
+                  ? 'משבצות עם סמל 👥 מציגות משתתפים שכבר פנויים בשעה זו. לחץ עליהן כדי לסמן שגם אתה פנוי!'
+                  : 'Slots marked with 👥 show teammates available at this time. Click them to match your availability!'}
               </p>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
               <span className="px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-[10px] font-mono font-bold">
-                👥 {language === 'he' ? 'זמינים נוספים' : 'Others Available'}
+                👥 {language === 'he' ? 'אחרים פנויים' : 'Others Available'}
               </span>
               <span className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-mono font-bold">
-                ✓ {language === 'he' ? 'בחירה שלי' : 'My Selection'}
+                ✓ {language === 'he' ? 'הבחירה שלי' : 'My Selection'}
               </span>
             </div>
           </div>
@@ -583,16 +734,21 @@ export function InviteeCalendar({
                           title={tooltipText}
                           className={`h-8 rounded-lg border transition-all flex items-center justify-center cursor-pointer font-mono text-[10px] font-bold ${
                             isSelected
-                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 border-emerald-400 text-white shadow-md shadow-emerald-500/40 scale-[1.03] ring-2 ring-emerald-400/50'
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-500 border-emerald-400 text-white shadow-md shadow-emerald-500/40 scale-[1.02] ring-2 ring-emerald-400/50'
                               : othersCount > 0
-                              ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25 font-bold shadow-sm'
+                              ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/30 font-extrabold shadow-sm ring-1 ring-emerald-500/30'
                               : 'bg-slate-50 dark:bg-slate-950/70 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 hover:border-emerald-400 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30 hover:text-emerald-600'
                           }`}
                         >
-                          {isSelected ? (
+                          {isSelected && othersCount > 0 ? (
+                            <span className="flex items-center gap-1">
+                              <span>✓</span>
+                              <span className="text-[9px] opacity-90">(👥{othersCount})</span>
+                            </span>
+                          ) : isSelected ? (
                             <span>✓</span>
                           ) : othersCount > 0 ? (
-                            <span className="flex items-center gap-1">
+                            <span className="flex items-center gap-1 text-emerald-800 dark:text-emerald-200 font-extrabold">
                               <span>👥</span>
                               <span>{othersCount}</span>
                             </span>
