@@ -136,8 +136,8 @@ export const translations = {
 
   he: {
     // Brand
-    'brand.name': 'Meeting Scheduler',
-    'brand.subtitle': 'Multi-tenant Meeting Coordination Platform',
+    'brand.name': 'מתזמן פגישות',
+    'brand.subtitle': 'פלטפורמה רב-ארגונית לתיאום פגישות',
 
     // Header & Navigation
     'nav.dashboard': 'לוח בקרה למארגן',
