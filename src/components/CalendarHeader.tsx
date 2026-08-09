@@ -31,7 +31,7 @@ export function CalendarHeader({
     <header className="h-16 border-b border-slate-200 dark:border-slate-800/80 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md px-4 md:px-6 flex items-center justify-between z-30 transition-colors" dir={dir}>
       {/* Left / Start Section: Brand & Nav */}
       <div className="flex items-center gap-4 md:gap-6">
-        <Link href="/" className="flex items-center gap-2.5 group">
+        <Link href="/organizer" className="flex items-center gap-2.5 group">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-base shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
             📅
           </div>

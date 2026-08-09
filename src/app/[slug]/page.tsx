@@ -135,7 +135,7 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
 
           <div className="pt-2">
             <Link
-              href="/"
+              href="/organizer"
               className="inline-flex items-center justify-center w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition-all"
             >
               {t('deleted.homeBtn')}
@@ -152,7 +152,7 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
         {/* Top Header with Navigation & Direct Group Heatmap Link */}
         <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4 gap-3">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+            <Link href="/organizer" className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline">
               ← {t('nav.home')}
             </Link>
             <div className="text-xs font-mono text-slate-400 dark:text-slate-500">
