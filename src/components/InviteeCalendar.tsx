@@ -67,13 +67,7 @@ export function InviteeCalendar({
     try {
       let loaded: ParticipantWithDetails[] = [];
 
-      // 1. Fetch from local meetingStore
-      const stored = getStoredMeetingData(key) || getStoredMeetingData(normalizeKey(key)) || [];
-      if (stored.length > 0) {
-        loaded = stored;
-      }
-
-      // 2. Fetch from Supabase DB
+      // 1. Fetch from Supabase DB (Cloud Source of Truth)
       try {
         const normKey = normalizeKey(key);
         const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
@@ -90,64 +84,65 @@ export function InviteeCalendar({
         const { data: dbData, error: dbErr } = await query.single();
 
         if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-          const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-            id: mp.id,
-            meeting_id: mp.meeting_id,
-            profile_id: mp.profile_id,
-            is_required: mp.is_required !== false,
-            profile: mp.profiles,
-            availability: (mp.availability_slots || []).map((s: any) => {
-              let slotKey = s.slot_key;
-              if (!slotKey && s.start_time) {
-                const d = new Date(s.start_time);
-                const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                slotKey = `${getDateKey(d)}_${timeStr}`;
-              }
-              return { ...s, slot_key: slotKey };
-            }),
-          }));
-
-          // Merge DB with local
-          if (loaded.length > 0) {
-            dbParticipants.forEach((dp) => {
-              const existingIdx = loaded.findIndex(
-                (lp) => lp.id === dp.id || (lp.profile?.email && dp.profile?.email && lp.profile.email.toLowerCase() === dp.profile.email.toLowerCase())
-              );
-              if (existingIdx >= 0) {
-                // Merge slots
-                const localSlots = loaded[existingIdx].availability || [];
-                const dbSlots = dp.availability || [];
-                const slotMap = new Map();
-                dbSlots.forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
-                localSlots.forEach((s: any) => {
-                  const sKey = s.slot_key || s.start_time;
-                  if (!slotMap.has(sKey)) slotMap.set(sKey, s);
-                });
-                loaded[existingIdx] = {
-                  ...dp,
-                  availability: Array.from(slotMap.values()),
-                };
-              } else {
-                loaded.push(dp);
-              }
-            });
-          } else {
-            loaded = dbParticipants;
-          }
+          loaded = dbData.meeting_participants
+            .filter((mp: any) => {
+              const em = (mp.profiles?.email || '').toLowerCase();
+              return em !== 'organizer@company.com' && em !== 'host@company.com';
+            })
+            .map((mp: any) => ({
+              id: mp.id,
+              meeting_id: mp.meeting_id,
+              profile_id: mp.profile_id,
+              is_required: mp.is_required !== false,
+              profile: mp.profiles,
+              availability: (mp.availability_slots || []).map((s: any) => {
+                let slotKey = s.slot_key;
+                if (!slotKey && s.start_time) {
+                  const d = new Date(s.start_time);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, '0');
+                  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                  slotKey = `${getDateKey(d)}_${timeStr}`;
+                }
+                return { ...s, slot_key: slotKey };
+              }),
+            }));
         }
       } catch (err) {
         console.warn('Group availability fetch fallback:', err);
       }
 
-      // Clean up legacy dummy host
-      if (loaded.length > 1 && loaded.some((p) => p.profile?.email !== 'host@company.com')) {
-        loaded = loaded.filter((p) => p.profile?.email !== 'host@company.com');
+      // 2. Fallback to local meetingStore if DB was empty
+      if (loaded.length === 0) {
+        const stored = getStoredMeetingData(key) || getStoredMeetingData(normalizeKey(key)) || [];
+        loaded = stored.filter((p) => {
+          const em = (p.profile?.email || '').toLowerCase();
+          return em !== 'organizer@company.com' && em !== 'host@company.com';
+        });
       }
 
-      setGroupParticipants(loaded);
+      // 3. Strictly deduplicate loaded participants by Email
+      const uniqueMap = new Map<string, ParticipantWithDetails>();
+      loaded.forEach((p) => {
+        const email = (p.profile?.email || '').trim().toLowerCase();
+        const k = email || p.id;
+        if (!uniqueMap.has(k)) {
+          uniqueMap.set(k, p);
+        } else {
+          const prev = uniqueMap.get(k)!;
+          const slotMap = new Map();
+          (prev.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+          (p.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+          uniqueMap.set(k, { ...prev, ...p, availability: Array.from(slotMap.values()) });
+        }
+      });
+
+      const cleanLoaded = Array.from(uniqueMap.values());
+      setGroupParticipants(cleanLoaded);
 
       // Populate user's own existing slots if present
-      const selfParticipant = loaded.find(
+      const selfParticipant = cleanLoaded.find(
         (p) =>
           p.id === participantId ||
           (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase())
@@ -254,22 +249,42 @@ export function InviteeCalendar({
     return map;
   }, [groupParticipants, participantId, guestInfo.email]);
 
-  // List of other participants who have submitted availability
+  // List of unique other participants who have submitted availability
   const otherParticipantsWithSlots = useMemo(() => {
-    return groupParticipants
-      .filter((p) => {
-        const isSelf =
-          p.id === participantId ||
-          (p.profile?.email && guestInfo.email && p.profile.email.toLowerCase() === guestInfo.email.toLowerCase());
-        return !isSelf;
-      })
-      .map((p) => ({
-        id: p.id,
-        name: p.profile?.full_name || p.profile?.email || 'Participant',
-        email: p.profile?.email || '',
-        isHost: p.profile?.is_organizer || false,
-        slotsCount: p.availability?.length || 0,
-      }));
+    const uniqueOtherMap = new Map<string, { id: string; name: string; email: string; isHost: boolean; slotsCount: number }>();
+    const currentEmail = (guestInfo.email || '').trim().toLowerCase();
+
+    groupParticipants.forEach((p) => {
+      const pEmail = (p.profile?.email || '').trim().toLowerCase();
+      const isSelf =
+        p.id === participantId ||
+        (pEmail && currentEmail && pEmail === currentEmail);
+
+      if (isSelf || pEmail === 'organizer@company.com' || pEmail === 'host@company.com') {
+        return;
+      }
+
+      const key = pEmail || p.id;
+      const slotsCount = p.availability?.length || 0;
+
+      if (!uniqueOtherMap.has(key)) {
+        uniqueOtherMap.set(key, {
+          id: p.id,
+          name: p.profile?.full_name || p.profile?.email || 'Participant',
+          email: pEmail,
+          isHost: p.profile?.is_organizer || false,
+          slotsCount: slotsCount,
+        });
+      } else {
+        const prev = uniqueOtherMap.get(key)!;
+        uniqueOtherMap.set(key, {
+          ...prev,
+          slotsCount: Math.max(prev.slotsCount, slotsCount),
+        });
+      }
+    });
+
+    return Array.from(uniqueOtherMap.values());
   }, [groupParticipants, participantId, guestInfo.email]);
 
   const isPastSlot = useCallback((dayDate: Date, totalMinutes: number) => {
