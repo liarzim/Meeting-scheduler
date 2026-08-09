@@ -1,4 +1,4 @@
-import type { AvailabilitySlot, Meeting, MeetingStatus } from '@/types';
+import type { AvailabilitySlot, Meeting } from '@/types';
 import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
@@ -61,33 +61,6 @@ export function saveStoredMeeting(meeting: Meeting) {
     }
   } catch (err) {
     console.warn('Failed to save meeting to list:', err);
-  }
-}
-
-export function updateMeetingStatus(meetingKey: string, newStatus: MeetingStatus) {
-  if (typeof window === 'undefined' || !meetingKey) return;
-  const norm = normalizeKey(meetingKey);
-  try {
-    const existing = getStoredMeetings();
-    const updated = existing.map((m) => {
-      if (normalizeKey(m.id) === norm || normalizeKey(m.slug) === norm) {
-        return { ...m, status: newStatus };
-      }
-      return m;
-    });
-    localStorage.setItem(MEETINGS_LIST_KEY, JSON.stringify(updated));
-
-    // Dispatch local custom event
-    window.dispatchEvent(new CustomEvent('meetings_list_updated'));
-
-    // Broadcast cross-tab live sync
-    if ('BroadcastChannel' in window) {
-      const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
-      bc.postMessage({ type: 'MEETINGS_LIST_UPDATED' });
-      bc.close();
-    }
-  } catch (err) {
-    console.warn('Failed to update meeting status:', err);
   }
 }
 

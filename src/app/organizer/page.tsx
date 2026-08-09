@@ -2,21 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import type { Meeting, MeetingStatus } from '@/types';
+import type { Meeting } from '@/types';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
-import {
-  getStoredMeetingData,
-  computeMeetingStats,
-  getStoredMeetings,
-  deleteStoredMeeting,
-  updateMeetingStatus,
-  normalizeKey,
-  type TopTimeSlot,
-} from '@/lib/meetingStore';
+import { getStoredMeetingData, computeMeetingStats, getStoredMeetings, deleteStoredMeeting, type TopTimeSlot } from '@/lib/meetingStore';
 
 export interface ExtendedMeeting extends Meeting {
   totalParticipants?: number;
@@ -33,8 +25,6 @@ export default function OrganizerDashboard() {
   const [loading, setLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
-
-  const isHebrew = language === 'he';
 
   // Delete modal state
   const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string } | null>(null);
@@ -142,36 +132,6 @@ export default function OrganizerDashboard() {
     showToast(`Meeting "${newMeeting.title}" created successfully!`);
   };
 
-  const handleStatusChange = async (meetingId: string, newStatus: MeetingStatus) => {
-    updateMeetingStatus(meetingId, newStatus);
-
-    try {
-      const norm = normalizeKey(meetingId);
-      await (supabase.from('meetings') as any)
-        .update({ status: newStatus })
-        .or(`id.eq.${norm},slug.eq.${norm}`);
-    } catch (err) {
-      console.warn('Supabase status update warning:', err);
-    }
-
-    setMeetings((prev) =>
-      prev.map((m) => (m.id === meetingId || m.slug === meetingId ? { ...m, status: newStatus } : m))
-    );
-
-    const statusLabels: Record<MeetingStatus, string> = {
-      OPEN: isHebrew ? 'פתוח (Open)' : 'Open',
-      SCHEDULED: isHebrew ? 'מתוזמן (Scheduled)' : 'Scheduled',
-      COMPLETED: isHebrew ? 'הושלם (Completed)' : 'Completed',
-      CANCELLED: isHebrew ? 'בוטל (Cancelled)' : 'Cancelled',
-    };
-
-    showToast(
-      isHebrew
-        ? `סטטוס הפגישה עודכן ל: ${statusLabels[newStatus]}`
-        : `Meeting status updated to: ${statusLabels[newStatus]}`
-    );
-  };
-
   const confirmDeleteMeeting = async () => {
     if (!meetingToDelete) return;
     const { id: meetingId, title } = meetingToDelete;
@@ -201,21 +161,6 @@ export default function OrganizerDashboard() {
     const url = `${window.location.origin}/${slug}`;
     navigator.clipboard.writeText(url);
     showToast(t('detail.linkCopied'));
-  };
-
-  const getStatusBadgeClass = (status: MeetingStatus) => {
-    switch (status) {
-      case 'OPEN':
-        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
-      case 'SCHEDULED':
-        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
-      case 'COMPLETED':
-        return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30';
-      case 'CANCELLED':
-        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
-      default:
-        return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30';
-    }
   };
 
   return (
@@ -306,20 +251,17 @@ export default function OrganizerDashboard() {
                       className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all shadow-sm hover:shadow-md dark:shadow-xl flex flex-col justify-between space-y-6 group relative overflow-hidden"
                     >
                       <div className="space-y-4">
-                        {/* Status Dropdown, ID & Delete Icon */}
-                        <div className="flex items-center justify-between gap-2">
-                          <select
-                            value={m.status || 'OPEN'}
-                            onChange={(e) => handleStatusChange(m.id, e.target.value as MeetingStatus)}
-                            className={`py-1 px-2.5 rounded-full text-[10px] font-bold uppercase tracking-wider border cursor-pointer outline-none transition-colors bg-white dark:bg-slate-900 ${getStatusBadgeClass(
-                              m.status || 'OPEN'
-                            )}`}
+                        {/* Status, ID & Delete Icon */}
+                        <div className="flex items-center justify-between">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              m.status === 'OPEN'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                            }`}
                           >
-                            <option value="OPEN">● {isHebrew ? 'פתוח' : 'OPEN'}</option>
-                            <option value="SCHEDULED">● {isHebrew ? 'מתוזמן' : 'SCHEDULED'}</option>
-                            <option value="COMPLETED">● {isHebrew ? 'הושלם' : 'COMPLETED'}</option>
-                            <option value="CANCELLED">● {isHebrew ? 'בוטל' : 'CANCELLED'}</option>
-                          </select>
+                            ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
+                          </span>
 
                           <div className="flex items-center gap-2">
                             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>

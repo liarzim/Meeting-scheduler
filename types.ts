@@ -1,4 +1,4 @@
-export type MeetingStatus = 'OPEN' | 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+export type MeetingStatus = 'OPEN' | 'SCHEDULED';
 
 export interface Profile {
   id: string;
