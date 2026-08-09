@@ -163,17 +163,13 @@ export function MeetingDetailView({
           const slotMap = new Map();
           (prev.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
           (p.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
-          uniqueMapUpdate(key, {
+          uniqueParticipantsMap.set(key, {
             ...prev,
             ...p,
             availability: Array.from(slotMap.values()),
           });
         }
       });
-
-      function uniqueMapUpdate(key: string, val: ParticipantWithDetails) {
-        uniqueParticipantsMap.set(key, val);
-      }
 
       const cleanParticipants = Array.from(uniqueParticipantsMap.values());
       if (cleanParticipants.length > 0) {
@@ -251,15 +247,29 @@ export function MeetingDetailView({
     router.push('/organizer');
   };
 
-  const toggleRequired = (participantId: string) => {
+  const toggleRequired = async (participantId: string) => {
+    let nextValue = true;
     setParticipants((prev) => {
-      const updated = prev.map((p) =>
-        p.id === participantId ? { ...p, is_required: !p.is_required } : p
-      );
+      const updated = prev.map((p) => {
+        if (p.id === participantId) {
+          nextValue = !p.is_required;
+          return { ...p, is_required: nextValue };
+        }
+        return p;
+      });
       saveStoredMeetingData(meeting.id, updated);
       saveStoredMeetingData(meeting.slug, updated);
       return updated;
     });
+
+    // Update in Supabase DB immediately
+    try {
+      await (supabase.from('meeting_participants') as any)
+        .update({ is_required: nextValue })
+        .eq('id', participantId);
+    } catch (err) {
+      console.warn('Failed to update participant is_required in DB:', err);
+    }
   };
 
   const handleAddParticipant = async (name: string, email: string) => {
