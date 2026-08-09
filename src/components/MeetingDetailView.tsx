@@ -222,14 +222,20 @@ export function MeetingDetailView({
   };
 
   const toggleRequired = async (participantId: string) => {
-    let nextValue = true;
-    let targetParticipant: ParticipantWithDetails | undefined;
+    const target = participants.find(
+      (p) => p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === participantId.toLowerCase())
+    );
+    if (!target) return;
 
+    const nextValue = !target.is_required;
+    const targetEmail = target.profile?.email?.toLowerCase();
+    const targetId = target.id;
+    const targetProfId = target.profile_id;
+
+    // 1. Optimistic UI update
     setParticipants((prev) => {
       const updated = prev.map((p) => {
-        if (p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === participantId.toLowerCase())) {
-          nextValue = !p.is_required;
-          targetParticipant = p;
+        if (p.id === targetId || (p.profile?.email && p.profile.email.toLowerCase() === targetEmail)) {
           return { ...p, is_required: nextValue };
         }
         return p;
@@ -240,22 +246,22 @@ export function MeetingDetailView({
       return updated;
     });
 
-    // Update in Supabase DB immediately
+    // 2. Persist to Supabase DB with exact calculated nextValue
     try {
       const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      if (isUUID(participantId)) {
+      if (isUUID(targetId)) {
         await (supabase.from('meeting_participants') as any)
           .update({ is_required: nextValue })
-          .eq('id', participantId);
-      } else if (targetParticipant?.profile_id && isUUID(targetParticipant.profile_id)) {
+          .eq('id', targetId);
+      } else if (targetProfId && isUUID(targetProfId)) {
         await (supabase.from('meeting_participants') as any)
           .update({ is_required: nextValue })
-          .eq('profile_id', targetParticipant.profile_id);
-      } else if (targetParticipant?.profile?.email) {
+          .eq('profile_id', targetProfId);
+      } else if (targetEmail) {
         const { data: prof } = await (supabase.from('profiles') as any)
           .select('id')
-          .eq('email', targetParticipant.profile.email.toLowerCase())
+          .eq('email', targetEmail)
           .maybeSingle();
 
         if (prof?.id) {
