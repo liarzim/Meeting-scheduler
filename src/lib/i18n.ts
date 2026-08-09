@@ -4,6 +4,9 @@ export type TranslationKey = keyof typeof translations.en;
 
 export const translations = {
   en: {
+    // Brand
+    'brand.name': 'Meeting Scheduler',
+
     // Header & Navigation
     'nav.dashboard': 'Organizer Dashboard',
     'nav.home': 'Home',
@@ -59,24 +62,22 @@ export const translations = {
     'detail.optionalBtn': '☆ Optional',
     'detail.inviteTitle': 'Invite Participant',
     'detail.namePlaceholder': 'Full Name',
-    'detail.emailPlaceholder': 'Email Address',
-    'detail.addPartBtn': '+ Add Participant',
+    'detail.emailPlaceholder': 'email@company.com',
+    'detail.addBtn': '+ Add',
+    'detail.shareHelp': 'Send this public URL to teammates to gather their weekly time availability.',
 
     // Heatmap
-    'heatmap.title': 'Weekly Availability Heatmap',
-    'heatmap.subtitle': 'Calculating overlap for Required participants',
-    'heatmap.match90': '≥90% Match',
-    'heatmap.match80': '≥80% Match',
-    'heatmap.matchLess80': '<80% Match',
-    'heatmap.disabledFriSat': 'Disabled (Fri/Sat)',
+    'heatmap.title': 'Group Availability Heatmap',
     'heatmap.timeCol': 'Time',
-    'heatmap.legendLabel': 'Availability Legend',
-    'heatmap.legend100': '100% Match',
-    'heatmap.legendPartial': 'Partial Match',
-    'heatmap.legendNone': 'No Availability',
-    'heatmap.requiredCount': 'required participants',
+    'heatmap.legendNone': '0% (Unavailable)',
+    'heatmap.legendSome': 'Partial Availability',
+    'heatmap.legendAll': '100% Match (All Available)',
+    'heatmap.legendHost': 'Organizer Available',
+    'heatmap.selectedSlot': 'Selected Slot:',
+    'heatmap.availableList': 'Available Participants:',
+    'heatmap.unavailableList': 'Unavailable Participants:',
 
-    // Days
+    // Days of Week
     'days.sun': 'Sunday',
     'days.mon': 'Monday',
     'days.tue': 'Tuesday',
@@ -92,39 +93,50 @@ export const translations = {
     'days.shortFri': 'Fri',
     'days.shortSat': 'Sat',
 
-    // Invitee Registration
-    'invitee.regBadge': 'Invitee Registration',
-    'invitee.joinTitle': 'Join',
-    'invitee.regSubtitle': 'Enter your details below to submit your availability.',
-    'invitee.autofillNotice': '✓ Auto-filled from your saved browser profile',
+    // Invitee Form & Calendar
+    'invitee.regBadge': 'Guest Registration',
+    'invitee.title': 'Join Meeting Schedule',
+    'invitee.subtitle': 'Enter your contact details to submit your availability blocks.',
     'invitee.nameLabel': 'Full Name *',
-    'invitee.emailLabel': 'Email Address *',
+    'invitee.namePlaceholder': 'e.g. Sarah Connor',
+    'invitee.emailLabel': 'Work Email *',
+    'invitee.emailPlaceholder': 'sarah@company.com',
     'invitee.companyLabel': 'Company / Organization',
+    'invitee.companyPlaceholder': 'e.g. Cyberdyne Systems',
     'invitee.phoneLabel': 'Phone Number',
-    'invitee.roleLabel': 'Role / Job Title',
-    'invitee.continueBtn': 'Continue to Select Availability →',
+    'invitee.phonePlaceholder': '+1 (555) 019-2834',
+    'invitee.roleLabel': 'Role / Title',
+    'invitee.rolePlaceholder': 'e.g. Senior Tech Lead',
+    'invitee.continueBtn': 'Continue to Calendar Selection →',
 
-    // Invitee Calendar
-    'cal.editProfile': '← Edit Profile',
+    // Calendar
     'cal.title': 'Select Your Availability',
-    'cal.subtitle': 'Click & drag across 30-minute time slots to select when you are free for',
-    'cal.selectedLabel': 'Selected',
+    'cal.subtitle': 'Click & drag across time slots you are available for this meeting.',
+    'cal.participantLabel': 'Submitting as',
+    'cal.selectedLabel': 'Selected Availability',
     'cal.slotsText': 'slots',
     'cal.hrsText': 'hrs',
-    'cal.clearBtn': 'Clear',
-    'cal.freeTag': '✓ Free',
-    'cal.tip': 'Tip: Drag mouse or finger across multiple boxes to select contiguous blocks quickly.',
-    'cal.submitBtn': 'Submit Selected Time Slots',
-    'cal.saving': 'Saving Slots...',
+    'cal.clearBtn': 'Clear All',
+    'cal.submitBtn': 'Submit Availability',
+    'cal.savingBtn': 'Saving...',
+    'cal.today': 'Today',
 
     // Confirmation
     'conf.title': 'Availability Submitted!',
-    'conf.subtitle': 'Thank you! Your preferred time slots have been saved.',
+    'conf.subtitle': 'Thank you! Your availability slots have been saved.',
     'conf.editBtn': '✏ Edit Availability',
     'conf.viewHeatmapBtn': '📊 View Meeting Heatmap',
+
+    // Deleted Screen
+    'deleted.title': 'Meeting No Longer Available',
+    'deleted.message': 'This meeting invitation has been cancelled or deleted by the organizer.',
+    'deleted.homeBtn': 'Back to Home Page',
   },
 
   he: {
+    // Brand
+    'brand.name': 'Meeting Scheduler',
+
     // Header & Navigation
     'nav.dashboard': 'לוח בקרה למארגן',
     'nav.home': 'דף הבית',
@@ -159,19 +171,19 @@ export const translations = {
     'modal.titleLabel': 'כותרת הפגישה *',
     'modal.titlePlaceholder': 'לדוגמה: סנכרון ארכיטקטורה רבעון 3',
     'modal.descLabel': 'תיאור / הערות',
-    'modal.descPlaceholder': 'אג\'נדה קצרה או מטרת המפגש עבור המשתתפים...',
-    'modal.slugLabel': 'קישור ייחודי לשיתוף (UUID נקי)',
-    'modal.slugHelp': 'קישור URL תקני מסוג UUID שנוצר אוטומטית.',
+    'modal.descPlaceholder': 'נושאים עיקריים או מטרת הפגישה...',
+    'modal.slugLabel': 'קישור לשיתוף (UUID נקי)',
+    'modal.slugHelp': 'קישור ייחודי סטנדרטי באורך 36 תווים הנוצר אוטומטית.',
     'modal.cancel': 'ביטול',
     'modal.cancelBtn': 'ביטול',
     'modal.submit': 'צור פגישה',
     'modal.submitBtn': 'צור פגישה',
-    'modal.submitting': 'יוצר...',
+    'modal.submitting': 'יוצר פגישה...',
 
     // Meeting Detail View
     'detail.statusLabel': 'סטטוס',
-    'detail.slugLabel': 'מזהה',
-    'detail.copyLinkBtn': '📋 העתק קישור לשתוף',
+    'detail.slugLabel': 'קישור',
+    'detail.copyLinkBtn': '📋 העתק קישור לשיתוף',
     'detail.linkCopied': '✓ הקישור הועתק!',
     'detail.participantsTitle': 'משתתפים',
     'detail.participantsHelp': 'שנה בין חובה לרשות כדי לעדכן את מפת החום',
@@ -180,31 +192,29 @@ export const translations = {
     'detail.optionalBtn': '☆ רשות',
     'detail.inviteTitle': 'הזמן משתתף',
     'detail.namePlaceholder': 'שם מלא',
-    'detail.emailPlaceholder': 'כתובת אימייל',
-    'detail.addPartBtn': '+ הוסף משתתף',
+    'detail.emailPlaceholder': 'email@company.com',
+    'detail.addBtn': '+ הוסף',
+    'detail.shareHelp': 'שלח כתובת זו למשתתפים כדי לאסוף את זמני הזמינות השבועיים שלהם.',
 
     // Heatmap
-    'heatmap.title': 'מפת חום של זמינות שבועית',
-    'heatmap.subtitle': 'מחשב חפיפה עבור משתתפי חובה',
-    'heatmap.match90': '≥90% התאמה',
-    'heatmap.match80': '≥80% התאמה',
-    'heatmap.matchLess80': '<80% התאמה',
-    'heatmap.disabledFriSat': 'מנוטרל (שישי/שבת)',
+    'heatmap.title': 'מפת חום של זמינות קבוצתית',
     'heatmap.timeCol': 'שעה',
-    'heatmap.legendLabel': 'מקרא זמינות',
-    'heatmap.legend100': '100% התאמה',
-    'heatmap.legendPartial': 'התאמה חלקית',
-    'heatmap.legendNone': 'אין זמינות',
-    'heatmap.requiredCount': 'משתתפי חובה',
+    'heatmap.legendNone': '0% (לא זמינים)',
+    'heatmap.legendSome': 'זמינות חלקית',
+    'heatmap.legendAll': '100% התאמה (כולם זמינים)',
+    'heatmap.legendHost': 'מארח זמין',
+    'heatmap.selectedSlot': 'חלון זמן שנבחר:',
+    'heatmap.availableList': 'משתתפים זמינים:',
+    'heatmap.unavailableList': 'משתתפים שאינם זמינים:',
 
-    // Days
-    'days.sun': 'יום ראשון',
-    'days.mon': 'יום שני',
-    'days.tue': 'יום שלישי',
-    'days.wed': 'יום רביעי',
-    'days.thu': 'יום חמישי',
-    'days.fri': 'יום שישי',
-    'days.sat': 'יום שבת',
+    // Days of Week
+    'days.sun': 'ראשון',
+    'days.mon': 'שני',
+    'days.tue': 'שלישי',
+    'days.wed': 'רביעי',
+    'days.thu': 'חמישי',
+    'days.fri': 'שישי',
+    'days.sat': 'שבת',
     'days.shortSun': 'א׳',
     'days.shortMon': 'ב׳',
     'days.shortTue': 'ג׳',
@@ -213,35 +223,43 @@ export const translations = {
     'days.shortFri': 'ו׳',
     'days.shortSat': 'ש׳',
 
-    // Invitee Registration
-    'invitee.regBadge': 'הרשמת משתתף',
-    'invitee.joinTitle': 'הצטרף ל-',
-    'invitee.regSubtitle': 'הזן את פרטיך להלן כדי להגיש את זמינותך.',
-    'invitee.autofillNotice': '✓ אוכלס אוטומטית מהפרופיל השמור בדפדפן',
+    // Invitee Form & Calendar
+    'invitee.regBadge': 'רישום אורח',
+    'invitee.title': 'הצטרף לתזמון פגישה',
+    'invitee.subtitle': 'הזן את פרטי הקשר שלך כדי לסמן את זמני הזמינות שלך.',
     'invitee.nameLabel': 'שם מלא *',
-    'invitee.emailLabel': 'כתובת אימייל *',
+    'invitee.namePlaceholder': 'לדוגמה: שרה כהן',
+    'invitee.emailLabel': 'דוא״ל עבודה *',
+    'invitee.emailPlaceholder': 'sarah@company.com',
     'invitee.companyLabel': 'חברה / ארגון',
+    'invitee.companyPlaceholder': 'לדוגמה: חברת הייטק',
     'invitee.phoneLabel': 'מספר טלפון',
-    'invitee.roleLabel': 'תפקיד / הגדרת איוב',
-    'invitee.continueBtn': 'המשך לבחירת זמינות ←',
+    'invitee.phonePlaceholder': '050-1234567',
+    'invitee.roleLabel': 'תפקיד',
+    'invitee.rolePlaceholder': 'לדוגמה: מפתח ראשי',
+    'invitee.continueBtn': 'המשך לבחירת זמנים ביומן ←',
 
-    // Invitee Calendar
-    'cal.editProfile': 'ערוך פרופיל →',
-    'cal.title': 'בחר את הזמינות שלך',
-    'cal.subtitle': 'לחץ וגרור על גבי משבצות של 30 דקות כדי לבחור מתי אתה פנוי עבור',
-    'cal.selectedLabel': 'נבחרו',
+    // Calendar
+    'cal.title': 'סמן את זמני הזמינות שלך',
+    'cal.subtitle': 'לחץ וגרור על פני משבצות הזמן שבהן אתה פנוי לפגישה.',
+    'cal.participantLabel': 'מגיש בתור',
+    'cal.selectedLabel': 'זמינות שנבחרה',
     'cal.slotsText': 'משבצות',
     'cal.hrsText': 'שעות',
-    'cal.clearBtn': 'ניקוי',
-    'cal.freeTag': '✓ פנוי',
-    'cal.tip': 'טיפ: גורר את העכבר או האצבע מעל מספר משבצות כדי לבחור טווח רציף במהירות.',
-    'cal.submitBtn': 'שלח משבצות זמן שנבחרו',
-    'cal.saving': 'שומר משבצות...',
+    'cal.clearBtn': 'נקה הכל',
+    'cal.submitBtn': 'שמור זמינות',
+    'cal.savingBtn': 'שומר...',
+    'cal.today': 'היום',
 
     // Confirmation
-    'conf.title': 'הזמינות נשלחה בהצלחה!',
-    'conf.subtitle': 'תודה! משבצות הזמן המועדפות עליך נשמרו.',
+    'conf.title': 'הזמינות נשמרה בהצלחה!',
+    'conf.subtitle': 'תודה! זמני הזמינות שלך נקלטו במערכת.',
     'conf.editBtn': '✏ ערוך זמינות',
-    'conf.viewHeatmapBtn': '📊 צפה במפת חום של הפגישה',
+    'conf.viewHeatmapBtn': '📊 צפה במפת החום',
+
+    // Deleted Screen
+    'deleted.title': 'פגישה זו כבר אינה זמינה',
+    'deleted.message': 'הזמנה זו לפגישה בוטלה או נמחקה על ידי המארגן.',
+    'deleted.homeBtn': 'חזרה לדף הבית',
   },
-};
+} as const;
