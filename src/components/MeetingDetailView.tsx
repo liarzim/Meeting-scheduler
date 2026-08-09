@@ -84,52 +84,63 @@ export function MeetingDetailView({
 
         const { data: dbData, error: dbErr } = await query.single();
 
-        if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-          let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-            id: mp.id,
-            meeting_id: mp.meeting_id,
-            profile_id: mp.profile_id,
-            is_required: mp.is_required !== false,
-            profile: mp.profiles,
-            availability: (mp.availability_slots || []).map((s: any) => {
-              let slotKey = s.slot_key;
-              if (!slotKey && s.start_time) {
-                const d = new Date(s.start_time);
-                const y = d.getFullYear();
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                const day = String(d.getDate()).padStart(2, '0');
-                const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                slotKey = `${y}-${m}-${day}_${timeStr}`;
-              }
-              return { ...s, slot_key: slotKey };
-            }),
-          }));
-
-          // Merge local availability into dbParticipants if DB slots are empty
-          if (finalParticipants.length > 0) {
-            dbParticipants = dbParticipants.map((dbP) => {
-              const localP = finalParticipants.find(
-                (lp) =>
-                  lp.id === dbP.id ||
-                  (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
-              );
-              if (localP && localP.availability && localP.availability.length > 0) {
-                if (!dbP.availability || dbP.availability.length === 0) {
-                  return { ...dbP, availability: localP.availability };
-                }
-              }
-              return dbP;
-            });
-
-            // Include local participants that DB doesn't have yet
-            finalParticipants.forEach((lp) => {
-              if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
-                dbParticipants.push(lp);
-              }
-            });
+        if (!dbErr && dbData) {
+          // Update meeting title & status from cloud database
+          if (dbData.title) {
+            setMeeting((prev) => ({
+              ...prev,
+              title: dbData.title,
+              status: dbData.status || prev.status,
+            }));
           }
 
-          finalParticipants = dbParticipants;
+          if (dbData.meeting_participants && dbData.meeting_participants.length > 0) {
+            let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+              id: mp.id,
+              meeting_id: mp.meeting_id,
+              profile_id: mp.profile_id,
+              is_required: mp.is_required !== false,
+              profile: mp.profiles,
+              availability: (mp.availability_slots || []).map((s: any) => {
+                let slotKey = s.slot_key;
+                if (!slotKey && s.start_time) {
+                  const d = new Date(s.start_time);
+                  const y = d.getFullYear();
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  const day = String(d.getDate()).padStart(2, '0');
+                  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                  slotKey = `${y}-${m}-${day}_${timeStr}`;
+                }
+                return { ...s, slot_key: slotKey };
+              }),
+            }));
+
+            // Merge local availability into dbParticipants if DB slots are empty
+            if (finalParticipants.length > 0) {
+              dbParticipants = dbParticipants.map((dbP) => {
+                const localP = finalParticipants.find(
+                  (lp) =>
+                    lp.id === dbP.id ||
+                    (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
+                );
+                if (localP && localP.availability && localP.availability.length > 0) {
+                  if (!dbP.availability || dbP.availability.length === 0) {
+                    return { ...dbP, availability: localP.availability };
+                  }
+                }
+                return dbP;
+              });
+
+              // Include local participants that DB doesn't have yet
+              finalParticipants.forEach((lp) => {
+                if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
+                  dbParticipants.push(lp);
+                }
+              });
+            }
+
+            finalParticipants = dbParticipants;
+          }
         }
       } catch (err) {
         console.warn('Supabase DB fetch notice:', err);
