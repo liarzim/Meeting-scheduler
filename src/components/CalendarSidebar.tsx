@@ -74,39 +74,51 @@ export function CalendarSidebar({
 
           {/* Participant Cards */}
           <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-            {participants.map((p) => (
-              <div
-                key={p.id}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-slate-900 dark:text-slate-200 text-xs truncate">
-                      {p.profile?.full_name || 'Anonymous Guest'}
-                    </span>
-                    {p.profile?.is_organizer && (
-                      <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold">
-                        {t('detail.hostTag')}
+            {participants.map((p) => {
+              const slotCount = p.availability?.length || 0;
+              return (
+                <div
+                  key={p.id}
+                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-semibold text-slate-900 dark:text-slate-200 text-xs truncate">
+                        {p.profile?.full_name || p.profile?.email || 'Anonymous Guest'}
                       </span>
-                    )}
+                      {p.profile?.is_organizer && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold">
+                          {t('detail.hostTag')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <p className="text-[10px] text-slate-500 truncate font-mono">{p.profile?.email}</p>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded shrink-0 ${
+                        slotCount > 0
+                          ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-500/10'
+                          : 'text-amber-600 dark:text-amber-400 bg-amber-500/10'
+                      }`}>
+                        {slotCount > 0 ? `✓ ${slotCount} slots` : '⏳ 0 slots'}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-500 truncate">{p.profile?.email}</p>
-                </div>
 
-                {onToggleRequired && (
-                  <button
-                    onClick={() => onToggleRequired(p.id)}
-                    className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${
-                      p.is_required
-                        ? 'bg-blue-600 text-white border border-blue-400 shadow-sm'
-                        : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700'
-                    }`}
-                  >
-                    {p.is_required ? t('detail.requiredBtn') : t('detail.optionalBtn')}
-                  </button>
-                )}
-              </div>
-            ))}
+                  {onToggleRequired && (
+                    <button
+                      onClick={() => onToggleRequired(p.id)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${
+                        p.is_required
+                          ? 'bg-blue-600 text-white border border-blue-400 shadow-sm'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700'
+                      }`}
+                    >
+                      {p.is_required ? t('detail.requiredBtn') : t('detail.optionalBtn')}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Add Participant Form */}

@@ -132,7 +132,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   }, [participants]);
 
   const slotDataMap = useMemo(() => {
-    const map: Record<string, { matchPct: number; availableCount: number; totalRequired: number }> = {};
+    const map: Record<string, { matchPct: number; availableCount: number; totalRequired: number; availableNames: string[] }> = {};
     const totalRequired = requiredParticipants.length;
 
     daysConfig.forEach((day) => {
@@ -141,15 +141,17 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
         const targetSlotKey = `${getDateKey(day.date)}_${slot.timeString}`;
 
         if (totalRequired === 0) {
-          map[slotKey] = { matchPct: 0, availableCount: 0, totalRequired: 0 };
+          map[slotKey] = { matchPct: 0, availableCount: 0, totalRequired: 0, availableNames: [] };
           return;
         }
 
-        const availableCount = requiredParticipants.filter((participant) => {
-          if (!participant.availability || participant.availability.length === 0) return false;
+        const availableNames: string[] = [];
 
-          return participant.availability.some((av) => {
-            // 1. Direct slot_key match (100% deterministic, zero timezone offset bugs!)
+        requiredParticipants.forEach((participant) => {
+          if (!participant.availability || participant.availability.length === 0) return;
+
+          const isMatch = participant.availability.some((av) => {
+            // 1. Direct slot_key match
             if (av.slot_key && av.slot_key === targetSlotKey) {
               return true;
             }
@@ -166,10 +168,16 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
             const startMinutes = start.getHours() * 60 + start.getMinutes();
             return slot.totalMinutes >= startMinutes && slot.totalMinutes < startMinutes + 30;
           });
-        }).length;
 
+          if (isMatch) {
+            const name = participant.profile?.full_name || participant.profile?.email || 'Participant';
+            availableNames.push(name);
+          }
+        });
+
+        const availableCount = availableNames.length;
         const matchPct = (availableCount / totalRequired) * 100;
-        map[slotKey] = { matchPct, availableCount, totalRequired };
+        map[slotKey] = { matchPct, availableCount, totalRequired, availableNames };
       });
     });
 
@@ -341,8 +349,11 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
                   }
 
                   const slotKey = `${day.key}-${slot.timeString}`;
-                  const data = slotDataMap[slotKey] || { matchPct: 0, availableCount: 0, totalRequired: 0 };
+                  const data = slotDataMap[slotKey] || { matchPct: 0, availableCount: 0, totalRequired: 0, availableNames: [] };
                   const colorClasses = getHeatmapColor(data.matchPct);
+                  const tooltip = data.availableNames.length > 0
+                    ? `Available (${data.availableCount}/${data.totalRequired}): ${data.availableNames.join(', ')} (${Math.round(data.matchPct)}%)`
+                    : `0/${data.totalRequired} participants available (0%)`;
 
                   return (
                     <div
@@ -350,7 +361,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
                       className={`h-9 mx-1 rounded border transition-all flex flex-col items-center justify-center font-mono text-[10px] cursor-pointer ${colorClasses} ${
                         isSelectedDay ? 'ring-1 ring-blue-500/50 shadow-sm' : ''
                       }`}
-                      title={`${data.availableCount}/${data.totalRequired} required participants available (${Math.round(data.matchPct)}%)`}
+                      title={tooltip}
                     >
                       <span>{Math.round(data.matchPct)}%</span>
                       <span className="text-[8px] opacity-80">{data.availableCount}/{data.totalRequired}</span>
