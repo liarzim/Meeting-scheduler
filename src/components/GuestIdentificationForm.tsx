@@ -70,7 +70,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
     const guestInfo: GuestInfo = {
       full_name: fullName.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       company: company.trim(),
       phone_number: phone.trim(),
       role: role.trim(),
@@ -82,21 +82,18 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
     }
     setGuestCookie(guestInfo);
 
-    // Generate standard 36-char UUIDs compatible with Supabase Postgres UUID columns
+    // Default UUIDs
     let profileId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
     let participantId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
 
-    // Instantly register participant in meetingStore so organizer sees them in sidebar
-    updateParticipantSlots(meetingId, participantId, guestInfo, []);
-
     try {
-      // 1. Upsert Profile in Supabase DB
+      // 1. Upsert Profile in Supabase DB by email
       const profileData = {
         id: profileId,
         email: guestInfo.email,
         full_name: guestInfo.full_name,
-        company: guestInfo.company,
-        phone_number: guestInfo.phone_number,
+        company: guestInfo.company || null,
+        phone_number: guestInfo.phone_number || null,
         is_organizer: false,
       };
 
@@ -109,40 +106,53 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
         profileId = profileResult.id;
       }
 
-      // 2. Upsert Meeting in Supabase DB
-      const meetingData = {
-        id: meetingId.length > 30 ? meetingId : crypto.randomUUID ? crypto.randomUUID() : meetingId,
-        title: cleanTitle,
-        slug: normalizeKey(meetingId),
-        status: 'OPEN',
-      };
+      // 2. Fetch actual meeting record to get primary ID
+      const normKey = normalizeKey(meetingId);
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      const { data: meetingResult } = await (supabase.from('meetings') as any)
-        .upsert([meetingData], { onConflict: 'slug' })
-        .select()
-        .single();
+      let meetingQuery = (supabase.from('meetings') as any).select('id');
+      if (isUUID(normKey)) {
+        meetingQuery = meetingQuery.or(`id.eq.${normKey},slug.eq.${normKey}`);
+      } else {
+        meetingQuery = meetingQuery.eq('slug', normKey);
+      }
 
-      const finalMeetingId = meetingResult?.id || meetingId;
+      const { data: meetingResult } = await meetingQuery.single();
+      const finalMeetingId = meetingResult?.id || normKey;
 
-      // 3. Upsert Participant in Supabase DB
-      const participantData = {
-        id: participantId,
-        meeting_id: finalMeetingId,
-        profile_id: profileId,
-        is_required: true,
-      };
+      // 3. Check if this participant already exists for this meeting (e.g. pre-added by organizer)
+      const { data: existingParticipant } = await (supabase.from('meeting_participants') as any)
+        .select('id')
+        .eq('meeting_id', finalMeetingId)
+        .eq('profile_id', profileId)
+        .maybeSingle();
 
-      const { data: partResult } = await (supabase.from('meeting_participants') as any)
-        .upsert([participantData], { onConflict: 'id' })
-        .select()
-        .single();
+      if (existingParticipant && existingParticipant.id) {
+        // Reuse existing participant ID (avoid duplicate!)
+        participantId = existingParticipant.id;
+      } else {
+        // Create new participant row
+        const participantData = {
+          id: participantId,
+          meeting_id: finalMeetingId,
+          profile_id: profileId,
+          is_required: true,
+        };
 
-      if (partResult && partResult.id) {
-        participantId = partResult.id;
+        const { data: partResult } = await (supabase.from('meeting_participants') as any)
+          .upsert([participantData], { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (partResult && partResult.id) {
+          participantId = partResult.id;
+        }
       }
     } catch (err) {
       console.warn('Supabase DB profile/participant upsert fallback:', err);
     } finally {
+      // Register in local store with resolved participantId
+      updateParticipantSlots(meetingId, participantId, guestInfo, []);
       setIsSubmitting(false);
       onComplete(participantId, profileId, guestInfo);
     }

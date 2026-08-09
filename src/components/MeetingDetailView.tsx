@@ -135,13 +135,38 @@ export function MeetingDetailView({
         console.warn('Supabase DB fetch notice:', err);
       }
 
-      // Clean up legacy dummy fallback host if an actual host exists
-      if (finalParticipants.length > 1 && finalParticipants.some((p) => p.profile?.email !== 'host@company.com')) {
-        finalParticipants = finalParticipants.filter((p) => p.profile?.email !== 'host@company.com');
+      // Deduplicate participants strictly by email and filter out any dummy host
+      const uniqueParticipantsMap = new Map<string, ParticipantWithDetails>();
+      finalParticipants.forEach((p) => {
+        const email = (p.profile?.email || '').trim().toLowerCase();
+        // Ignore dummy organizer@company.com or host@company.com if other participants exist
+        if (email === 'organizer@company.com' || email === 'host@company.com') {
+          return;
+        }
+        const key = email || p.id;
+        if (!uniqueParticipantsMap.has(key)) {
+          uniqueParticipantsMap.set(key, p);
+        } else {
+          // Merge availability slots if duplicate participant object encountered
+          const prev = uniqueParticipantsMap.get(key)!;
+          const slotMap = new Map();
+          (prev.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+          (p.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+          uniqueMapUpdate(key, {
+            ...prev,
+            ...p,
+            availability: Array.from(slotMap.values()),
+          });
+        }
+      });
+
+      function uniqueMapUpdate(key: string, val: ParticipantWithDetails) {
+        uniqueParticipantsMap.set(key, val);
       }
 
-      if (finalParticipants.length > 0) {
-        setParticipants(finalParticipants);
+      const cleanParticipants = Array.from(uniqueParticipantsMap.values());
+      if (cleanParticipants.length > 0) {
+        setParticipants(cleanParticipants);
       }
     } finally {
       isLoadingRef.current = false;
@@ -226,17 +251,28 @@ export function MeetingDetailView({
     });
   };
 
-  const handleAddParticipant = (name: string, email: string) => {
-    const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
+  const handleAddParticipant = async (name: string, email: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = name.trim();
+    if (!cleanEmail) return;
+
+    // Check if participant already in list
+    if (participants.some((p) => (p.profile?.email || '').toLowerCase() === cleanEmail)) {
+      return;
+    }
+
+    const newProfId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
+    const newPartId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
+
     const newParticipant: ParticipantWithDetails = {
-      id: newId,
+      id: newPartId,
       meeting_id: meeting.id,
-      profile_id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`,
+      profile_id: newProfId,
       is_required: true,
       profile: {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`,
-        email: email,
-        full_name: name,
+        id: newProfId,
+        email: cleanEmail,
+        full_name: cleanName,
         company: null,
         phone_number: null,
         is_organizer: false,
@@ -244,12 +280,22 @@ export function MeetingDetailView({
       availability: [],
     };
 
-    setParticipants((prev) => {
-      const updated = [...prev, newParticipant];
-      saveStoredMeetingData(meeting.id, updated);
-      saveStoredMeetingData(meeting.slug, updated);
-      return updated;
-    });
+    setParticipants((prev) => [...prev, newParticipant]);
+
+    // Upsert into Supabase so participant is already in DB when invitee arrives
+    try {
+      const { data: profResult } = await (supabase.from('profiles') as any)
+        .upsert([{ id: newProfId, email: cleanEmail, full_name: cleanName, is_organizer: false }], { onConflict: 'email' })
+        .select()
+        .single();
+
+      const finalProfId = profResult?.id || newProfId;
+
+      await (supabase.from('meeting_participants') as any)
+        .upsert([{ id: newPartId, meeting_id: meeting.id, profile_id: finalProfId, is_required: true }], { onConflict: 'id' });
+    } catch (err) {
+      console.warn('Supabase DB add participant notice:', err);
+    }
   };
 
   const toggleMeetingStatus = () => {
@@ -262,8 +308,8 @@ export function MeetingDetailView({
   const hostParticipant = participants.find((p) => p.profile?.is_organizer) || participants[0];
 
   const hostInfo: GuestInfo = {
-    full_name: hostParticipant?.profile?.full_name || 'Organizer (Host)',
-    email: hostParticipant?.profile?.email || 'organizer@company.com',
+    full_name: hostParticipant?.profile?.full_name || 'מיכאל (Host)',
+    email: hostParticipant?.profile?.email || 'michael.liarzi@gmail.com',
     role: 'Organizer',
   };
 
