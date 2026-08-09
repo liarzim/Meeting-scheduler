@@ -76,10 +76,18 @@ export function InviteeCalendar({
       // 2. Fetch from Supabase DB
       try {
         const normKey = normalizeKey(key);
-        const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
-          .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
-          .or(`id.eq.${normKey},slug.eq.${normKey}`)
-          .single();
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+        let query = (supabase.from('meetings') as any)
+          .select('*, meeting_participants(*, profiles(*), availability_slots(*))');
+
+        if (isUUID(normKey)) {
+          query = query.or(`id.eq.${normKey},slug.eq.${normKey}`);
+        } else {
+          query = query.eq('slug', normKey);
+        }
+
+        const { data: dbData, error: dbErr } = await query.single();
 
         if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
           const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({

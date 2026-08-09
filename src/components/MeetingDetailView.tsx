@@ -69,11 +69,20 @@ export function MeetingDetailView({
       try {
         const normSlug = normalizeKey(meeting.slug);
         const normId = normalizeKey(meeting.id);
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-        const { data: dbData, error: dbErr } = await (supabase.from('meetings') as any)
-          .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
-          .or(`id.eq.${normId},slug.eq.${normSlug}`)
-          .single();
+        let query = (supabase.from('meetings') as any)
+          .select('*, meeting_participants(*, profiles(*), availability_slots(*))');
+
+        if (isUUID(normId) && isUUID(normSlug) && normId === normSlug) {
+          query = query.or(`id.eq.${normId},slug.eq.${normSlug}`);
+        } else if (isUUID(normId)) {
+          query = query.or(`id.eq.${normId},slug.eq.${normSlug}`);
+        } else {
+          query = query.eq('slug', normSlug);
+        }
+
+        const { data: dbData, error: dbErr } = await query.single();
 
         if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
           let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({

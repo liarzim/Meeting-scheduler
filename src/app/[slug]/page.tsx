@@ -8,7 +8,6 @@ import { GuestIdentificationForm } from '@/components/GuestIdentificationForm';
 import { InviteeCalendar } from '@/components/InviteeCalendar';
 import { getGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { useLanguage } from '@/context/LanguageContext';
-
 import { getStoredMeetings, normalizeKey } from '@/lib/meetingStore';
 
 interface PublicMeetingPageProps {
@@ -44,12 +43,15 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
       try {
         setLoading(true);
 
+        const normSlug = normalizeKey(rawSlug);
+        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
         // 1. Check local meetingStore
         const stored = getStoredMeetings();
         const localMeeting = stored.find(
           (m) =>
-            normalizeKey(m.slug) === normalizeKey(rawSlug) ||
-            normalizeKey(m.id) === normalizeKey(rawSlug) ||
+            normalizeKey(m.slug) === normSlug ||
+            normalizeKey(m.id) === normSlug ||
             normalizeKey(m.slug) === normalizeKey(decodedSlug)
         );
 
@@ -60,10 +62,14 @@ export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
         }
 
         // 2. Check Supabase DB
-        const { data, error } = await (supabase.from('meetings') as any)
-          .select('*')
-          .or(`slug.eq.${normalizeKey(rawSlug)},id.eq.${normalizeKey(rawSlug)},slug.eq.${normalizeKey(decodedSlug)}`)
-          .single();
+        let query = (supabase.from('meetings') as any).select('*');
+        if (isUUID(normSlug)) {
+          query = query.or(`slug.eq.${normSlug},id.eq.${normSlug}`);
+        } else {
+          query = query.eq('slug', normSlug);
+        }
+
+        const { data, error } = await query.single();
 
         if (!error && data) {
           setMeeting(data as Meeting);

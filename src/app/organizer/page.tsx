@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
+import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
@@ -45,21 +46,48 @@ export default function OrganizerDashboard() {
       const stored = getStoredMeetings();
       const { data, error } = await supabase
         .from('meetings')
-        .select('*')
+        .select('*, meeting_participants(*, profiles(*), availability_slots(*))')
         .order('id', { ascending: false });
 
       const map = new Map<string, ExtendedMeeting>();
 
       if (!error && data && data.length > 0) {
-        (data as Meeting[])
+        (data as any[])
           .filter((m) => !isMeetingDeleted(m.id) && !isMeetingDeleted(m.slug))
           .forEach((m) => {
-            const storedSlots =
-              getStoredMeetingData(m.id) ||
-              getStoredMeetingData(m.slug) ||
-              getStoredMeetingData(decodeURIComponent(m.slug)) ||
-              [];
-            map.set(m.id, { ...m, ...computeMeetingStats(storedSlots) });
+            let participants: ParticipantWithDetails[] = [];
+            if (m.meeting_participants && m.meeting_participants.length > 0) {
+              participants = m.meeting_participants.map((mp: any) => ({
+                id: mp.id,
+                meeting_id: mp.meeting_id,
+                profile_id: mp.profile_id,
+                is_required: mp.is_required !== false,
+                profile: mp.profiles,
+                availability: (mp.availability_slots || []).map((s: any) => {
+                  let slotKey = s.slot_key;
+                  if (!slotKey && s.start_time) {
+                    const d = new Date(s.start_time);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    slotKey = `${y}-${m}-${day}_${timeStr}`;
+                  }
+                  return { ...s, slot_key: slotKey };
+                }),
+              }));
+            }
+
+            // Fallback or merge with local store
+            if (participants.length === 0) {
+              participants =
+                getStoredMeetingData(m.id) ||
+                getStoredMeetingData(m.slug) ||
+                getStoredMeetingData(decodeURIComponent(m.slug)) ||
+                [];
+            }
+
+            map.set(m.id, { ...m, ...computeMeetingStats(participants) });
           });
       }
 
@@ -128,6 +156,9 @@ export default function OrganizerDashboard() {
     const channel = supabase
       .channel('rt_dashboard_slots')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'availability_slots' }, () => {
+        debouncedRefresh();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
         debouncedRefresh();
       })
       .subscribe();

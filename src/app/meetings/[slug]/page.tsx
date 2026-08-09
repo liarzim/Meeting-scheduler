@@ -18,7 +18,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
     .replace(/\b\w/g, (l) => l.toUpperCase());
 
   const meeting: Meeting = {
-    id: `m-${slug}`,
+    id: slug,
     organizer_id: 'prof-1',
     title: formattedTitle || 'Meeting',
     slug: slug,
