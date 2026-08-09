@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import type { Meeting } from '@/types';
+import type { Meeting, MeetingStatus } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { CalendarHeader } from './CalendarHeader';
@@ -11,7 +11,14 @@ import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
+import {
+  getStoredMeetingData,
+  saveStoredMeetingData,
+  getStoredMeetingBySlug,
+  normalizeKey,
+  deleteStoredMeeting,
+  updateMeetingStatus,
+} from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
 
 interface MeetingDetailViewProps {
@@ -33,6 +40,8 @@ export function MeetingDetailView({
   const [copied, setCopied] = useState(false);
   const [shareableUrl, setShareableUrl] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  const isHebrew = language === 'he';
 
   useEffect(() => {
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
@@ -70,41 +79,47 @@ export function MeetingDetailView({
         .or(`id.eq.${normId},slug.eq.${normSlug}`)
         .single();
 
-      if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-        let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-          id: mp.id,
-          meeting_id: mp.meeting_id,
-          profile_id: mp.profile_id,
-          is_required: mp.is_required !== false,
-          profile: mp.profiles,
-          availability: mp.availability_slots || [],
-        }));
-
-        // Merge local availability into dbParticipants if DB slots are empty
-        if (finalParticipants.length > 0) {
-          dbParticipants = dbParticipants.map((dbP) => {
-            const localP = finalParticipants.find(
-              (lp) =>
-                lp.id === dbP.id ||
-                (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
-            );
-            if (localP && localP.availability && localP.availability.length > 0) {
-              if (!dbP.availability || dbP.availability.length === 0) {
-                return { ...dbP, availability: localP.availability };
-              }
-            }
-            return dbP;
-          });
-
-          // Include local participants that DB doesn't have yet
-          finalParticipants.forEach((lp) => {
-            if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
-              dbParticipants.push(lp);
-            }
-          });
+      if (!dbErr && dbData) {
+        if (dbData.status) {
+          setMeeting((prev) => ({ ...prev, status: dbData.status }));
         }
 
-        finalParticipants = dbParticipants;
+        if (dbData.meeting_participants && dbData.meeting_participants.length > 0) {
+          let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
+            id: mp.id,
+            meeting_id: mp.meeting_id,
+            profile_id: mp.profile_id,
+            is_required: mp.is_required !== false,
+            profile: mp.profiles,
+            availability: mp.availability_slots || [],
+          }));
+
+          // Merge local availability into dbParticipants if DB slots are empty
+          if (finalParticipants.length > 0) {
+            dbParticipants = dbParticipants.map((dbP) => {
+              const localP = finalParticipants.find(
+                (lp) =>
+                  lp.id === dbP.id ||
+                  (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
+              );
+              if (localP && localP.availability && localP.availability.length > 0) {
+                if (!dbP.availability || dbP.availability.length === 0) {
+                  return { ...dbP, availability: localP.availability };
+                }
+              }
+              return dbP;
+            });
+
+            // Include local participants that DB doesn't have yet
+            finalParticipants.forEach((lp) => {
+              if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
+                dbParticipants.push(lp);
+              }
+            });
+          }
+
+          finalParticipants = dbParticipants;
+        }
       }
     } catch (err) {
       console.warn('Supabase DB fetch fallback:', err);
@@ -134,6 +149,7 @@ export function MeetingDetailView({
     };
 
     window.addEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+    window.addEventListener('meetings_list_updated', loadData);
     window.addEventListener('storage', handleAvailabilityUpdate);
 
     let bc: BroadcastChannel | null = null;
@@ -153,10 +169,14 @@ export function MeetingDetailView({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'meeting_participants' }, () => {
         handleAvailabilityUpdate();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meetings' }, () => {
+        handleAvailabilityUpdate();
+      })
       .subscribe();
 
     return () => {
       window.removeEventListener('meeting_availability_updated', handleAvailabilityUpdate);
+      window.removeEventListener('meetings_list_updated', loadData);
       window.removeEventListener('storage', handleAvailabilityUpdate);
       if (bc) bc.close();
       supabase.removeChannel(channel);
@@ -219,11 +239,35 @@ export function MeetingDetailView({
     });
   };
 
-  const toggleMeetingStatus = () => {
-    setMeeting((prev) => ({
-      ...prev,
-      status: prev.status === 'OPEN' ? 'SCHEDULED' : 'OPEN',
-    }));
+  const handleStatusChange = async (newStatus: MeetingStatus) => {
+    setMeeting((prev) => ({ ...prev, status: newStatus }));
+    updateMeetingStatus(meeting.id, newStatus);
+    updateMeetingStatus(meeting.slug, newStatus);
+
+    try {
+      const normId = normalizeKey(meeting.id);
+      const normSlug = normalizeKey(meeting.slug);
+      await (supabase.from('meetings') as any)
+        .update({ status: newStatus })
+        .or(`id.eq.${normId},slug.eq.${normSlug}`);
+    } catch (err) {
+      console.warn('Supabase DB status update warning:', err);
+    }
+  };
+
+  const getStatusBadgeClass = (status: MeetingStatus) => {
+    switch (status) {
+      case 'OPEN':
+        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30';
+      case 'SCHEDULED':
+        return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
+      case 'COMPLETED':
+        return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30';
+      case 'CANCELLED':
+        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
+      default:
+        return 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/30';
+    }
   };
 
   const hostParticipant = participants.find((p) => p.profile?.is_organizer) || participants[0];
@@ -309,17 +353,20 @@ export function MeetingDetailView({
               <header className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-md dark:shadow-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6 transition-colors">
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <span
-                      onClick={toggleMeetingStatus}
-                      className={`cursor-pointer px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider transition-colors ${
-                        meeting.status === 'OPEN'
-                          ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                          : 'bg-indigo-500/10 border border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
-                      }`}
-                      title="Click to toggle status"
+                    {/* Interactive Status Dropdown */}
+                    <select
+                      value={meeting.status || 'OPEN'}
+                      onChange={(e) => handleStatusChange(e.target.value as MeetingStatus)}
+                      className={`py-1 px-3 rounded-full text-xs font-bold uppercase tracking-wider border cursor-pointer outline-none transition-colors bg-white dark:bg-slate-900 ${getStatusBadgeClass(
+                        meeting.status || 'OPEN'
+                      )}`}
                     >
-                      ● {t('detail.statusLabel')}: {meeting.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
-                    </span>
+                      <option value="OPEN">● {isHebrew ? 'סטטוס: פתוח (OPEN)' : 'Status: OPEN'}</option>
+                      <option value="SCHEDULED">● {isHebrew ? 'סטטוס: מתוזמן (SCHEDULED)' : 'Status: SCHEDULED'}</option>
+                      <option value="COMPLETED">● {isHebrew ? 'סטטוס: הושלם (COMPLETED)' : 'Status: COMPLETED'}</option>
+                      <option value="CANCELLED">● {isHebrew ? 'סטטוס: בוטל (CANCELLED)' : 'Status: CANCELLED'}</option>
+                    </select>
+
                     <span className="text-xs font-mono text-slate-500">{t('detail.slugLabel')}: {meeting.slug}</span>
                   </div>
                   <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white">
