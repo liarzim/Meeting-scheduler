@@ -176,7 +176,6 @@ export default function OrganizerDashboard() {
       <CalendarHeader
         currentDate={selectedDate}
         onToday={() => setSelectedDate(new Date())}
-        onCreateClick={() => setIsModalOpen(true)}
       />
 
       {/* Main Calendar Layout Container */}
@@ -190,22 +189,13 @@ export default function OrganizerDashboard() {
 
         {/* Content Area: Meetings List & Dashboard */}
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
-                {t('dashboard.title')}
-              </h1>
-              <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs md:text-sm">
-                {t('dashboard.subtitle')}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="px-5 py-2.5 rounded-full font-bold text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-lg shadow-indigo-600/30 transition-all"
-            >
-              {t('dashboard.createBtn')}
-            </button>
+          <div className="border-b border-slate-200 dark:border-slate-800 pb-6">
+            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
+              {t('dashboard.title')}
+            </h1>
+            <p className="mt-1 text-slate-500 dark:text-slate-400 text-xs md:text-sm">
+              {t('dashboard.subtitle')}
+            </p>
           </div>
 
           {/* Meetings Cards Grid */}
