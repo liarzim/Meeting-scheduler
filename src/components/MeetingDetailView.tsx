@@ -52,25 +52,12 @@ export function MeetingDetailView({
     isLoadingRef.current = true;
 
     try {
-      let finalParticipants: ParticipantWithDetails[] = [];
+      const normSlug = normalizeKey(meeting.slug);
+      const normId = normalizeKey(meeting.id);
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 
-      // 1. Fetch from local meetingStore first
-      const stored =
-        getStoredMeetingData(meeting.id) ||
-        getStoredMeetingData(meeting.slug) ||
-        getStoredMeetingData(decodeURIComponent(meeting.slug)) ||
-        [];
-
-      if (stored && stored.length > 0) {
-        finalParticipants = stored;
-      }
-
-      // 2. Fetch live data from Supabase DB and merge
+      // 1. Fetch live data from Supabase DB
       try {
-        const normSlug = normalizeKey(meeting.slug);
-        const normId = normalizeKey(meeting.id);
-        const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-
         let query = (supabase.from('meetings') as any)
           .select('*, meeting_participants(*, profiles(*), availability_slots(*))');
 
@@ -85,7 +72,6 @@ export function MeetingDetailView({
         const { data: dbData, error: dbErr } = await query.single();
 
         if (!dbErr && dbData) {
-          // Update meeting title & status from cloud database
           if (dbData.title) {
             setMeeting((prev) => ({
               ...prev,
@@ -95,85 +81,73 @@ export function MeetingDetailView({
           }
 
           if (dbData.meeting_participants && dbData.meeting_participants.length > 0) {
-            let dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants.map((mp: any) => ({
-              id: mp.id,
-              meeting_id: mp.meeting_id,
-              profile_id: mp.profile_id,
-              is_required: mp.is_required !== false,
-              profile: mp.profiles,
-              availability: (mp.availability_slots || []).map((s: any) => {
-                let slotKey = s.slot_key;
-                if (!slotKey && s.start_time) {
-                  const d = new Date(s.start_time);
-                  const y = d.getFullYear();
-                  const m = String(d.getMonth() + 1).padStart(2, '0');
-                  const day = String(d.getDate()).padStart(2, '0');
-                  const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                  slotKey = `${y}-${m}-${day}_${timeStr}`;
-                }
-                return { ...s, slot_key: slotKey };
-              }),
-            }));
-
-            // Merge local availability into dbParticipants if DB slots are empty
-            if (finalParticipants.length > 0) {
-              dbParticipants = dbParticipants.map((dbP) => {
-                const localP = finalParticipants.find(
-                  (lp) =>
-                    lp.id === dbP.id ||
-                    (lp.profile?.email && dbP.profile?.email && lp.profile.email.toLowerCase() === dbP.profile.email.toLowerCase())
-                );
-                if (localP && localP.availability && localP.availability.length > 0) {
-                  if (!dbP.availability || dbP.availability.length === 0) {
-                    return { ...dbP, availability: localP.availability };
+            const dbParticipants: ParticipantWithDetails[] = dbData.meeting_participants
+              .filter((mp: any) => {
+                const em = (mp.profiles?.email || '').toLowerCase();
+                return em !== 'organizer@company.com' && em !== 'host@company.com';
+              })
+              .map((mp: any) => ({
+                id: mp.id,
+                meeting_id: mp.meeting_id,
+                profile_id: mp.profile_id,
+                is_required: mp.is_required !== false,
+                profile: mp.profiles,
+                availability: (mp.availability_slots || []).map((s: any) => {
+                  let slotKey = s.slot_key;
+                  if (!slotKey && s.start_time) {
+                    const d = new Date(s.start_time);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                    slotKey = `${y}-${m}-${day}_${timeStr}`;
                   }
-                }
-                return dbP;
-              });
+                  return { ...s, slot_key: slotKey };
+                }),
+              }));
 
-              // Include local participants that DB doesn't have yet
-              finalParticipants.forEach((lp) => {
-                if (!dbParticipants.some((dp) => dp.id === lp.id || (dp.profile?.email && lp.profile?.email && dp.profile.email.toLowerCase() === lp.profile.email.toLowerCase()))) {
-                  dbParticipants.push(lp);
-                }
-              });
+            // Deduplicate by email strictly
+            const uniqueMap = new Map<string, ParticipantWithDetails>();
+            dbParticipants.forEach((p) => {
+              const em = (p.profile?.email || '').trim().toLowerCase();
+              const key = em || p.id;
+              if (!uniqueMap.has(key)) {
+                uniqueMap.set(key, p);
+              } else {
+                const prev = uniqueMap.get(key)!;
+                const slotMap = new Map();
+                (prev.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+                (p.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
+                uniqueMap.set(key, { ...prev, ...p, availability: Array.from(slotMap.values()) });
+              }
+            });
+
+            const cleanList = Array.from(uniqueMap.values());
+            if (cleanList.length > 0) {
+              setParticipants(cleanList);
+              return;
             }
-
-            finalParticipants = dbParticipants;
           }
         }
       } catch (err) {
         console.warn('Supabase DB fetch notice:', err);
       }
 
-      // Deduplicate participants strictly by email and filter out any dummy host
-      const uniqueParticipantsMap = new Map<string, ParticipantWithDetails>();
-      finalParticipants.forEach((p) => {
-        const email = (p.profile?.email || '').trim().toLowerCase();
-        // Ignore dummy organizer@company.com or host@company.com if other participants exist
-        if (email === 'organizer@company.com' || email === 'host@company.com') {
-          return;
-        }
-        const key = email || p.id;
-        if (!uniqueParticipantsMap.has(key)) {
-          uniqueParticipantsMap.set(key, p);
-        } else {
-          // Merge availability slots if duplicate participant object encountered
-          const prev = uniqueParticipantsMap.get(key)!;
-          const slotMap = new Map();
-          (prev.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
-          (p.availability || []).forEach((s) => slotMap.set(s.slot_key || s.start_time, s));
-          uniqueParticipantsMap.set(key, {
-            ...prev,
-            ...p,
-            availability: Array.from(slotMap.values()),
-          });
-        }
-      });
+      // 2. Fallback to local meetingStore if DB returned nothing
+      const stored =
+        getStoredMeetingData(meeting.id) ||
+        getStoredMeetingData(meeting.slug) ||
+        getStoredMeetingData(decodeURIComponent(meeting.slug)) ||
+        [];
 
-      const cleanParticipants = Array.from(uniqueParticipantsMap.values());
-      if (cleanParticipants.length > 0) {
-        setParticipants(cleanParticipants);
+      if (stored && stored.length > 0) {
+        const cleanStored = stored.filter((p) => {
+          const em = (p.profile?.email || '').toLowerCase();
+          return em !== 'organizer@company.com' && em !== 'host@company.com';
+        });
+        if (cleanStored.length > 0) {
+          setParticipants(cleanStored);
+        }
       }
     } finally {
       isLoadingRef.current = false;
@@ -249,24 +223,47 @@ export function MeetingDetailView({
 
   const toggleRequired = async (participantId: string) => {
     let nextValue = true;
+    let targetParticipant: ParticipantWithDetails | undefined;
+
     setParticipants((prev) => {
       const updated = prev.map((p) => {
-        if (p.id === participantId) {
+        if (p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === participantId.toLowerCase())) {
           nextValue = !p.is_required;
+          targetParticipant = p;
           return { ...p, is_required: nextValue };
         }
         return p;
       });
-      saveStoredMeetingData(meeting.id, updated);
-      saveStoredMeetingData(meeting.slug, updated);
+      // Save locally quietly without triggering broadcast reload race condition
+      saveStoredMeetingData(meeting.id, updated, true);
+      saveStoredMeetingData(meeting.slug, updated, true);
       return updated;
     });
 
     // Update in Supabase DB immediately
     try {
-      await (supabase.from('meeting_participants') as any)
-        .update({ is_required: nextValue })
-        .eq('id', participantId);
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+      if (isUUID(participantId)) {
+        await (supabase.from('meeting_participants') as any)
+          .update({ is_required: nextValue })
+          .eq('id', participantId);
+      } else if (targetParticipant?.profile_id && isUUID(targetParticipant.profile_id)) {
+        await (supabase.from('meeting_participants') as any)
+          .update({ is_required: nextValue })
+          .eq('profile_id', targetParticipant.profile_id);
+      } else if (targetParticipant?.profile?.email) {
+        const { data: prof } = await (supabase.from('profiles') as any)
+          .select('id')
+          .eq('email', targetParticipant.profile.email.toLowerCase())
+          .maybeSingle();
+
+        if (prof?.id) {
+          await (supabase.from('meeting_participants') as any)
+            .update({ is_required: nextValue })
+            .eq('profile_id', prof.id);
+        }
+      }
     } catch (err) {
       console.warn('Failed to update participant is_required in DB:', err);
     }

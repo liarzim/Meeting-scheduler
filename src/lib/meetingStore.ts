@@ -158,7 +158,7 @@ export function getStoredMeetingData(key: string): ParticipantWithDetails[] | nu
   return null;
 }
 
-export function saveStoredMeetingData(key: string, data: ParticipantWithDetails[]) {
+export function saveStoredMeetingData(key: string, data: ParticipantWithDetails[], skipBroadcast: boolean = false) {
   if (typeof window === 'undefined' || !key) return;
   const norm = normalizeKey(key);
   try {
@@ -204,14 +204,16 @@ export function saveStoredMeetingData(key: string, data: ParticipantWithDetails[
 
     localStorage.setItem(`${STORAGE_KEY}_${norm}`, JSON.stringify(merged));
 
-    // Dispatch local custom event
-    window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
+    if (!skipBroadcast) {
+      // Dispatch local custom event
+      window.dispatchEvent(new CustomEvent('meeting_availability_updated', { detail: { key: norm } }));
 
-    // Broadcast across tabs
-    if ('BroadcastChannel' in window) {
-      const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
-      bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm });
-      bc.close();
+      // Broadcast across tabs
+      if ('BroadcastChannel' in window) {
+        const bc = new BroadcastChannel(LIVE_SYNC_CHANNEL_NAME);
+        bc.postMessage({ type: 'AVAILABILITY_UPDATED', key: norm });
+        bc.close();
+      }
     }
   } catch (err) {
     console.warn('Failed to save participant data to localStorage:', err);
