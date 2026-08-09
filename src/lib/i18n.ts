@@ -65,10 +65,16 @@ export const translations = {
     'detail.namePlaceholder': 'Full Name',
     'detail.emailPlaceholder': 'email@company.com',
     'detail.addBtn': '+ Add',
+    'detail.addPartBtn': '+ Add Participant',
     'detail.shareHelp': 'Send this public URL to teammates to gather their weekly time availability.',
 
     // Heatmap
     'heatmap.title': 'Group Availability Heatmap',
+    'heatmap.subtitle': 'Color intensity shows participant availability overlap',
+    'heatmap.requiredCount': 'Required Participants',
+    'heatmap.legendLabel': 'Legend',
+    'heatmap.legend100': '100% Match (All Available)',
+    'heatmap.legendPartial': 'Partial Availability',
     'heatmap.timeCol': 'Time',
     'heatmap.legendNone': '0% (Unavailable)',
     'heatmap.legendSome': 'Partial Availability',
@@ -96,8 +102,12 @@ export const translations = {
 
     // Invitee Form & Calendar
     'invitee.regBadge': 'Guest Registration',
+    'invitee.joinTitle': 'Join Meeting',
+    'invitee.regSubtitle': 'Fill in your details to submit your availability blocks.',
     'invitee.title': 'Join Meeting Schedule',
     'invitee.subtitle': 'Enter your contact details to submit your availability blocks.',
+    'invitee.restoredSaved': '✓ Restored your saved details for this meeting (Confirm or update below)',
+    'invitee.firstTime': '👋 First time joining this meeting? Enter your details below!',
     'invitee.nameLabel': 'Full Name *',
     'invitee.namePlaceholder': 'e.g. Sarah Connor',
     'invitee.emailLabel': 'Work Email *',
@@ -196,10 +206,16 @@ export const translations = {
     'detail.namePlaceholder': 'שם מלא',
     'detail.emailPlaceholder': 'email@company.com',
     'detail.addBtn': '+ הוסף',
+    'detail.addPartBtn': '+ הוסף משתתף',
     'detail.shareHelp': 'שלח כתובת זו למשתתפים כדי לאסוף את זמני הזמינות השבועיים שלהם.',
 
     // Heatmap
     'heatmap.title': 'מפת חום של זמינות קבוצתית',
+    'heatmap.subtitle': 'עוצמת הצבע מציגה את חפיפת הזמינות בין המשתתפים',
+    'heatmap.requiredCount': 'משתתפי חובה',
+    'heatmap.legendLabel': 'מקרא',
+    'heatmap.legend100': '100% התאמה (כולם זמינים)',
+    'heatmap.legendPartial': 'התאמה חלקית',
     'heatmap.timeCol': 'שעה',
     'heatmap.legendNone': '0% (לא זמינים)',
     'heatmap.legendSome': 'זמינות חלקית',
@@ -227,8 +243,12 @@ export const translations = {
 
     // Invitee Form & Calendar
     'invitee.regBadge': 'רישום אורח',
+    'invitee.joinTitle': 'הצטרפות לפגישה',
+    'invitee.regSubtitle': 'הזן את פרטי הקשר שלך כדי לסמן את זמני הזמינות שלך.',
     'invitee.title': 'הצטרף לתזמון פגישה',
     'invitee.subtitle': 'הזן את פרטי הקשר שלך כדי לסמן את זמני הזמינות שלך.',
+    'invitee.restoredSaved': '✓ שוחזרו הפרטים השמורים שלך לפגישה זו (אשר או עדכן להלן)',
+    'invitee.firstTime': '👋 פעם ראשונה שאתה מצטרף לפגישה זו? הזן את פרטיך להלן!',
     'invitee.nameLabel': 'שם מלא *',
     'invitee.namePlaceholder': 'לדוגמה: שרה כהן',
     'invitee.emailLabel': 'דוא״ל עבודה *',

@@ -167,11 +167,11 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
 
         {autoFilled ? (
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-medium mt-2">
-            ✓ Restored your saved details for this meeting (Confirm or update below)
+            {t('invitee.restoredSaved')}
           </div>
         ) : (
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-medium mt-2">
-            👋 First time joining this meeting? Enter your details below!
+            {t('invitee.firstTime')}
           </div>
         )}
       </div>
@@ -186,7 +186,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             required
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="e.g. Sarah Jenkins"
+            placeholder={t('invitee.namePlaceholder')}
             className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
@@ -200,7 +200,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="sarah@company.com"
+            placeholder={t('invitee.emailPlaceholder')}
             className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
@@ -214,7 +214,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
               type="text"
               value={company}
               onChange={(e) => setCompany(e.target.value)}
-              placeholder="e.g. Acme Corp"
+              placeholder={t('invitee.companyPlaceholder')}
               className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
@@ -227,7 +227,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 (555) 019-2831"
+              placeholder={t('invitee.phonePlaceholder')}
               className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
           </div>
@@ -241,7 +241,7 @@ export function GuestIdentificationForm({ meetingId, meetingTitle, onComplete }:
             type="text"
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            placeholder="e.g. Senior Software Engineer / Lead Designer"
+            placeholder={t('invitee.rolePlaceholder')}
             className="w-full px-4 py-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
