@@ -6,6 +6,7 @@ import { setGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/context/LanguageContext';
 import { updateParticipantSlots, normalizeKey } from '@/lib/meetingStore';
+import { PhoneInputWithCountry } from './PhoneInputWithCountry';
 
 interface GuestIdentificationFormProps {
   meetingId: string;
@@ -254,12 +255,9 @@ export function GuestIdentificationForm({
             <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
               {t('invitee.phoneLabel')}
             </label>
-            <input
-              type="tel"
+            <PhoneInputWithCountry
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={t('invitee.phonePlaceholder')}
-              className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              onChange={setPhone}
             />
           </div>
         </div>
