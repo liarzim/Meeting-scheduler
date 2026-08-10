@@ -164,16 +164,28 @@ export function PhoneInputWithCountry({
         className="flex items-center rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-transparent transition-all shadow-sm overflow-hidden"
         dir="ltr"
       >
-        {/* Country Code Dropdown Trigger */}
+        {/* Country Code Dropdown Trigger on Left */}
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100/80 dark:bg-slate-900/80 hover:bg-slate-200/80 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors shrink-0 select-none"
+          className="flex items-center gap-2 px-3 py-2.5 bg-slate-100/90 dark:bg-slate-900/90 hover:bg-slate-200 dark:hover:bg-slate-800 border-r border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 transition-colors shrink-0 select-none"
           title={language === 'he' ? 'בחר קידומת מדינה' : 'Select country code'}
         >
-          <span className="text-base leading-none">{selectedCountry.flag}</span>
-          <span className="font-mono">{selectedCountry.prefix}</span>
-          <span className="text-[10px] opacity-60">▼</span>
+          {/* Real Visual Flag Image (Works across all Windows, Mac, and mobile browsers) */}
+          <img
+            src={`https://flagcdn.com/w40/${selectedCountry.code.toLowerCase()}.png`}
+            srcSet={`https://flagcdn.com/w80/${selectedCountry.code.toLowerCase()}.png 2x`}
+            width="22"
+            height="16"
+            alt={selectedCountry.nameEn}
+            className="rounded-[3px] object-cover shadow-xs border border-slate-300/40 shrink-0"
+            onError={(e) => {
+              // Fallback to emoji if CDN is blocked
+              (e.target as HTMLElement).style.display = 'none';
+            }}
+          />
+          <span className="font-mono text-xs">{selectedCountry.prefix}</span>
+          <span className="text-[9px] text-slate-400">▼</span>
         </button>
 
         {/* Local Number Input */}
@@ -207,7 +219,7 @@ export function PhoneInputWithCountry({
             />
           </div>
 
-          {/* List of Countries */}
+          {/* List of Countries with Real Flags */}
           <div className="max-h-56 overflow-y-auto p-1 space-y-0.5 text-xs">
             {filteredCountries.length === 0 ? (
               <div className="p-3 text-center text-slate-400 text-xs">
@@ -229,8 +241,16 @@ export function PhoneInputWithCountry({
                         : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80'
                     }`}
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <span className="text-base leading-none shrink-0">{c.flag}</span>
+                    <div className="flex items-center gap-2.5 truncate">
+                      <img
+                        src={`https://flagcdn.com/w40/${c.code.toLowerCase()}.png`}
+                        srcSet={`https://flagcdn.com/w80/${c.code.toLowerCase()}.png 2x`}
+                        width="20"
+                        height="15"
+                        alt={c.nameEn}
+                        className="rounded-[2px] object-cover shadow-xs border border-slate-300/40 shrink-0"
+                        loading="lazy"
+                      />
                       <span className="truncate">{countryName}</span>
                     </div>
                     <span className="font-mono text-xs text-slate-400 dark:text-slate-500 shrink-0 ml-2" dir="ltr">
