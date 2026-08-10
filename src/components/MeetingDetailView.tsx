@@ -531,7 +531,11 @@ export function MeetingDetailView({
               </header>
 
               {/* Full Width Weekly Calendar Heatmap */}
-              <MeetingHeatmap participants={participants} selectedDate={selectedDate} />
+              <MeetingHeatmap
+                participants={participants}
+                selectedDate={selectedDate}
+                meetingTitle={meeting.title}
+              />
             </>
           )}
         </main>

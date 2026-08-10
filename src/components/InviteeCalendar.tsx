@@ -589,7 +589,10 @@ export function InviteeCalendar({
           <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-xs text-blue-800 dark:text-blue-300 font-medium">
             👥 <strong>Group Availability View:</strong> Below is the live overlap map showing all participants&apos; availability for this meeting.
           </div>
-          <MeetingHeatmap participants={groupParticipants} />
+          <MeetingHeatmap
+            participants={groupParticipants}
+            meetingTitle={meetingTitle}
+          />
         </div>
       ) : (
         <>

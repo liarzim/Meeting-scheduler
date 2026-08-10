@@ -15,6 +15,7 @@ export interface ParticipantWithDetails extends MeetingParticipant {
 interface MeetingHeatmapProps {
   participants: ParticipantWithDetails[];
   selectedDate?: Date;
+  meetingTitle?: string;
 }
 
 // 7:00 AM to 10:00 PM (30 slots of 30 minutes each)
@@ -35,7 +36,11 @@ function getDateKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-export function MeetingHeatmap({ participants, selectedDate = new Date() }: MeetingHeatmapProps) {
+export function MeetingHeatmap({
+  participants,
+  selectedDate = new Date(),
+  meetingTitle = '',
+}: MeetingHeatmapProps) {
   const { t, dir, language } = useLanguage();
   const [weekOffset, setWeekOffset] = useState(0);
   const [timezone, setTimezone] = useState('');
@@ -433,6 +438,7 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
       {/* Interactive Slot Participants Modal Popup */}
       <SlotParticipantsModal
         isOpen={!!selectedSlotDetails}
+        meetingTitle={meetingTitle}
         slotDetails={selectedSlotDetails}
         onClose={() => setSelectedSlotDetails(null)}
       />
