@@ -40,13 +40,21 @@ export function MeetingDetailView({
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
   }, [meeting.slug]);
 
-  // Load client-stored meeting title and details
+  // Sync state from server-side fetched initialMeeting and initialParticipants immediately
   useEffect(() => {
-    const storedMeeting = getStoredMeetingBySlug(initialMeeting.slug) || getStoredMeetingBySlug(initialMeeting.id);
-    if (storedMeeting) {
-      setMeeting(storedMeeting);
+    if (initialMeeting) {
+      setMeeting((prev) => ({
+        ...prev,
+        ...initialMeeting,
+      }));
     }
-  }, [initialMeeting.slug, initialMeeting.id]);
+  }, [initialMeeting]);
+
+  useEffect(() => {
+    if (initialParticipants && initialParticipants.length > 0) {
+      setParticipants(initialParticipants);
+    }
+  }, [initialParticipants]);
 
   const loadData = useCallback(async () => {
     if (isLoadingRef.current) return;
@@ -181,10 +189,10 @@ export function MeetingDetailView({
     window.addEventListener('storage', debouncedUpdate);
     window.addEventListener('focus', debouncedUpdate);
 
-    // 3-second background polling to guarantee cross-device updates without page refresh
+    // 2-second background polling to guarantee cross-device updates without page refresh
     const pollInterval = setInterval(() => {
       loadData();
-    }, 3000);
+    }, 2000);
 
     let bc: BroadcastChannel | null = null;
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
