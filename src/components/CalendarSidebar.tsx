@@ -11,6 +11,7 @@ interface CalendarSidebarProps {
   onCreateClick?: () => void;
   participants?: ParticipantWithDetails[];
   onToggleRequired?: (id: string) => void;
+  onRemoveParticipant?: (id: string) => void;
   onAddParticipant?: (name: string, email: string) => void;
 }
 
@@ -20,6 +21,7 @@ export function CalendarSidebar({
   onCreateClick,
   participants,
   onToggleRequired,
+  onRemoveParticipant,
   onAddParticipant,
 }: CalendarSidebarProps) {
   const { t, dir, language } = useLanguage();
@@ -104,18 +106,30 @@ export function CalendarSidebar({
                     </div>
                   </div>
 
-                  {onToggleRequired && (
-                    <button
-                      onClick={() => onToggleRequired(p.id)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${
-                        p.is_required
-                          ? 'bg-blue-600 text-white border border-blue-400 shadow-sm'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700'
-                      }`}
-                    >
-                      {p.is_required ? t('detail.requiredBtn') : t('detail.optionalBtn')}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onToggleRequired && (
+                      <button
+                        onClick={() => onToggleRequired(p.id)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${
+                          p.is_required
+                            ? 'bg-blue-600 text-white border border-blue-400 shadow-sm'
+                            : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 border border-slate-300 dark:border-slate-700'
+                        }`}
+                      >
+                        {p.is_required ? t('detail.requiredBtn') : t('detail.optionalBtn')}
+                      </button>
+                    )}
+
+                    {!p.profile?.is_organizer && onRemoveParticipant && (
+                      <button
+                        onClick={() => onRemoveParticipant(p.id)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-xs"
+                        title={language === 'he' ? 'הסר משתתף' : 'Remove participant'}
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

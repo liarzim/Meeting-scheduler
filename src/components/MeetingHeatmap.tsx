@@ -185,10 +185,11 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   }, [daysConfig, requiredParticipants]);
 
   const getHeatmapColor = (matchPct: number) => {
-    if (matchPct === 0) return 'bg-rose-500/10 border-rose-500/30 text-rose-500 dark:text-rose-400';
-    if (matchPct < 50) return 'bg-amber-500/20 border-amber-500/40 text-amber-600 dark:text-amber-300 font-semibold';
-    if (matchPct < 100) return 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 font-semibold';
-    return 'bg-emerald-500 border-emerald-400 text-white font-bold shadow-md shadow-emerald-500/30';
+    if (matchPct === 0) return 'bg-rose-500/10 border-rose-500/20 text-rose-500 dark:text-rose-400';
+    if (matchPct < 40) return 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 font-medium';
+    if (matchPct < 70) return 'bg-amber-500/30 border-amber-500/50 text-amber-900 dark:text-amber-200 font-bold';
+    if (matchPct < 100) return 'bg-emerald-500/35 border-emerald-500/60 text-emerald-800 dark:text-emerald-200 font-extrabold';
+    return 'bg-emerald-600 border-emerald-400 text-white font-extrabold shadow-md shadow-emerald-500/30';
   };
 
   const isSelectedDate = (date: Date) => {

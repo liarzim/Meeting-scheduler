@@ -279,6 +279,8 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]): {
   topTimeSlots: TopTimeSlot[];
 } {
   const cleanParticipants = participants.filter((p) => p.profile?.email !== 'host@company.com');
+  const requiredParticipants = cleanParticipants.filter((p) => p.is_required !== false);
+  const totalCountForMatch = requiredParticipants.length || cleanParticipants.length || 1;
   const totalParticipants = cleanParticipants.length || 1;
   const submittedParticipants = cleanParticipants.filter(
     (p) => p.availability && p.availability.length > 0
@@ -286,7 +288,9 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]): {
 
   const slotMap: Record<string, { available: Set<string>; date: Date; hours: number; minutes: number }> = {};
 
-  cleanParticipants.forEach((p) => {
+  const activeParticipants = requiredParticipants.length > 0 ? requiredParticipants : cleanParticipants;
+
+  activeParticipants.forEach((p) => {
     if (p.availability && p.availability.length > 0) {
       p.availability.forEach((av) => {
         let slotKey = av.slot_key;
@@ -323,7 +327,7 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]): {
 
   const slotsList = Object.entries(slotMap).map(([slotKey, data]) => {
     const count = data.available.size;
-    const pct = Math.round((count / totalParticipants) * 100);
+    const pct = Math.round((count / totalCountForMatch) * 100);
 
     const endMinutes = data.minutes + 30;
     const endHour = data.hours + Math.floor(endMinutes / 60);
@@ -362,13 +366,13 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]): {
       timeRangeHe,
       pct,
       availableCount: count,
-      totalCount: totalParticipants,
+      totalCount: totalCountForMatch,
     };
   });
 
-  // Filter 90%+ matching slots and sort descending
+  // Filter 50%+ matching slots and sort descending by % then count
   const topTimeSlots = slotsList
-    .filter((s) => s.pct >= 90)
+    .filter((s) => s.pct >= 50)
     .sort((a, b) => b.pct - a.pct || b.availableCount - a.availableCount)
     .slice(0, 3);
 

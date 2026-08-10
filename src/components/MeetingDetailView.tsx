@@ -344,6 +344,41 @@ export function MeetingDetailView({
     }
   };
 
+  const handleRemoveParticipant = async (participantId: string) => {
+    const target = participants.find(
+      (p) => p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === participantId.toLowerCase())
+    );
+    if (!target || target.profile?.is_organizer) return;
+
+    const targetEmail = target.profile?.email?.toLowerCase();
+    const targetId = target.id;
+
+    // 1. Optimistic UI update
+    setParticipants((prev) => {
+      const updated = prev.filter(
+        (p) => p.id !== targetId && (!targetEmail || (p.profile?.email || '').toLowerCase() !== targetEmail)
+      );
+      saveStoredMeetingData(meeting.id, updated, true);
+      saveStoredMeetingData(meeting.slug, updated, true);
+      return updated;
+    });
+
+    // 2. Persist delete to Supabase DB
+    try {
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+      if (isUUID(targetId)) {
+        await (supabase.from('meeting_participants') as any).delete().eq('id', targetId);
+      } else if (targetEmail) {
+        const { data: prof } = await (supabase.from('profiles') as any).select('id').eq('email', targetEmail).maybeSingle();
+        if (prof?.id) {
+          await (supabase.from('meeting_participants') as any).delete().eq('profile_id', prof.id);
+        }
+      }
+    } catch (err) {
+      console.warn('Supabase DB remove participant notice:', err);
+    }
+  };
+
   const toggleMeetingStatus = () => {
     setMeeting((prev) => ({
       ...prev,
@@ -375,6 +410,7 @@ export function MeetingDetailView({
           onSelectDate={setSelectedDate}
           participants={participants}
           onToggleRequired={toggleRequired}
+          onRemoveParticipant={handleRemoveParticipant}
           onAddParticipant={handleAddParticipant}
         />
 
