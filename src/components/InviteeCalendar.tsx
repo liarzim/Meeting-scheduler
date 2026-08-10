@@ -690,6 +690,45 @@ export function InviteeCalendar({
             </div>
           </div>
 
+          {/* Mobile & Touch Instructions Guide */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 to-indigo-50/70 dark:from-blue-950/40 dark:to-indigo-950/30 border border-blue-200 dark:border-blue-800/80 text-xs space-y-2 shadow-sm text-start">
+            <div className="font-extrabold flex items-center justify-between text-blue-900 dark:text-blue-200 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📱</span>
+                <span>{language === 'he' ? 'כיצד לסמן זמנים בנייד ובמחשב?' : 'How to pick your availability on mobile & desktop?'}</span>
+              </div>
+              <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[10px] font-mono">
+                {language === 'he' ? 'מדריך מהיר' : 'Quick Guide'}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px] text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+              <div className="flex items-start gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-sm">👆</span>
+                <div>
+                  <strong className="text-slate-900 dark:text-white block">{language === 'he' ? '1. לחיצה (Tap):' : '1. Tap to Select:'}</strong>
+                  <span>{language === 'he' ? 'לחצו על כל שעה כדי לסמן זמינות (✓ בירוק). לחיצה נוספת מבטלת.' : 'Tap any slot to mark availability (green ✓). Tap again to unselect.'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-sm">🖐️</span>
+                <div>
+                  <strong className="text-slate-900 dark:text-white block">{language === 'he' ? '2. גרירה ברצף (Drag):' : '2. Drag across Hours:'}</strong>
+                  <span>{language === 'he' ? 'לחצו וגררו את האצבע ברצף על פני כמה שעות כדי לסמן טווח שלם במהירות.' : 'Press & drag finger across multiple slots to select a whole block at once.'}</span>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                <span className="text-sm">💾</span>
+                <div>
+                  <strong className="text-slate-900 dark:text-white block">{language === 'he' ? '3. שמירה (חובה!):' : '3. Save & Submit:'}</strong>
+                  <span>{language === 'he' ? 'בסיום הסימון, לחצו על הכפתור הירוק "שמור והגש זמינות" לשמירת בחירתכם.' : 'When finished, click the green "Submit Availability" button to save!'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Selected Slot Summary Bar */}
           <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-200 dark:border-slate-800/80 text-xs">
             <div className="font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
@@ -806,6 +845,29 @@ export function InviteeCalendar({
             </div>
           </div>
         </>
+      )}
+
+      {/* Mobile Sticky Floating Save Bar */}
+      {viewMode === 'CALENDAR' && (
+        <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="text-xs font-mono">
+            <span className="text-slate-500 dark:text-slate-400 block text-[10px]">
+              {language === 'he' ? 'נבחרו:' : 'Selected:'}
+            </span>
+            <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+              {selectedSlots.size} {t('cal.slotsText')} ({(selectedSlots.size * 0.5).toFixed(1)} {t('cal.hrsText')})
+            </span>
+          </div>
+
+          <button
+            onClick={handleSubmitAvailability}
+            disabled={isSubmitting || selectedSlots.size === 0}
+            className="py-2.5 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold text-xs transition-all shadow-lg shadow-emerald-600/30 disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <span>💾</span>
+            <span>{isSubmitting ? t('cal.savingBtn') : language === 'he' ? 'שמור והגש זמינות' : 'Submit Availability'}</span>
+          </button>
+        </div>
       )}
     </div>
   );
