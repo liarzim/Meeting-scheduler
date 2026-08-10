@@ -5,6 +5,7 @@ import type { AvailabilitySlot, MeetingParticipant, Profile } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
 import { getWeekDates } from '@/lib/timezone';
 import { TimezoneSelector } from './TimezoneSelector';
+import { SlotParticipantsModal, type SlotDetails } from './SlotParticipantsModal';
 
 export interface ParticipantWithDetails extends MeetingParticipant {
   profile?: Profile;
@@ -35,9 +36,10 @@ function getDateKey(date: Date): string {
 }
 
 export function MeetingHeatmap({ participants, selectedDate = new Date() }: MeetingHeatmapProps) {
-  const { t, dir } = useLanguage();
+  const { t, dir, language } = useLanguage();
   const [weekOffset, setWeekOffset] = useState(0);
   const [timezone, setTimezone] = useState('');
+  const [selectedSlotDetails, setSelectedSlotDetails] = useState<SlotDetails | null>(null);
 
   // Auto-detect week offset if participants submitted availability for future weeks
   useEffect(() => {
@@ -185,11 +187,11 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
   }, [daysConfig, requiredParticipants]);
 
   const getHeatmapColor = (matchPct: number) => {
-    if (matchPct === 0) return 'bg-rose-500/10 border-rose-500/20 text-rose-500 dark:text-rose-400';
-    if (matchPct < 40) return 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 font-medium';
-    if (matchPct < 70) return 'bg-amber-500/30 border-amber-500/50 text-amber-900 dark:text-amber-200 font-bold';
-    if (matchPct < 100) return 'bg-emerald-500/35 border-emerald-500/60 text-emerald-800 dark:text-emerald-200 font-extrabold';
-    return 'bg-emerald-600 border-emerald-400 text-white font-extrabold shadow-md shadow-emerald-500/30';
+    if (matchPct === 0) return 'bg-rose-500/10 border-rose-500/20 text-rose-500 dark:text-rose-400 hover:bg-rose-500/20';
+    if (matchPct < 40) return 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300 font-medium hover:bg-amber-500/25';
+    if (matchPct < 70) return 'bg-amber-500/30 border-amber-500/50 text-amber-900 dark:text-amber-200 font-bold hover:bg-amber-500/40';
+    if (matchPct < 100) return 'bg-emerald-500/35 border-emerald-500/60 text-emerald-800 dark:text-emerald-200 font-extrabold hover:bg-emerald-500/50';
+    return 'bg-emerald-600 border-emerald-400 text-white font-extrabold shadow-md shadow-emerald-500/30 hover:bg-emerald-500';
   };
 
   const isSelectedDate = (date: Date) => {
@@ -199,6 +201,56 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
       date.getMonth() === selectedDate.getMonth() &&
       date.getFullYear() === selectedDate.getFullYear()
     );
+  };
+
+  const handleSlotClick = (day: any, slot: any, data: any) => {
+    const targetSlotKey = `${getDateKey(day.date)}_${slot.timeString}`;
+
+    const availableParticipants: ParticipantWithDetails[] = [];
+    const unavailableParticipants: ParticipantWithDetails[] = [];
+
+    participants.forEach((p) => {
+      if (!p.availability || p.availability.length === 0) {
+        unavailableParticipants.push(p);
+        return;
+      }
+
+      const isMatch = p.availability.some((av) => {
+        if (av.slot_key && av.slot_key === targetSlotKey) return true;
+        const start = new Date(av.start_time);
+        const isSameDay =
+          start.getFullYear() === day.date.getFullYear() &&
+          start.getMonth() === day.date.getMonth() &&
+          start.getDate() === day.date.getDate();
+        if (!isSameDay) return false;
+        const startMinutes = start.getHours() * 60 + start.getMinutes();
+        return slot.totalMinutes >= startMinutes && slot.totalMinutes < startMinutes + 30;
+      });
+
+      if (isMatch) {
+        availableParticipants.push(p);
+      } else {
+        unavailableParticipants.push(p);
+      }
+    });
+
+    const endMinutes = slot.totalMinutes + 30;
+    const endHours = Math.floor(endMinutes / 60);
+    const endMins = endMinutes % 60;
+    const displayEndHours = endHours > 12 ? endHours - 12 : endHours === 0 ? 12 : endHours;
+    const endDisplayString = `${displayEndHours}:${endMins === 0 ? '00' : String(endMins).padStart(2, '0')} ${endHours >= 12 ? 'PM' : 'AM'}`;
+
+    setSelectedSlotDetails({
+      date: day.date,
+      timeString: slot.timeString,
+      displayString: slot.displayString,
+      endDisplayString,
+      matchPct: data.matchPct,
+      availableCount: data.availableCount,
+      totalRequired: data.totalRequired,
+      availableParticipants,
+      unavailableParticipants,
+    });
   };
 
   return (
@@ -241,70 +293,72 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
         </div>
       </div>
 
-      {/* Legend & Stats */}
+      {/* Legend & Instructions */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 text-xs">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
           <span className="font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px]">
             {t('heatmap.legendLabel')}:
           </span>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-emerald-500" />
-            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legend100')}</span>
+            <div className="w-3 h-3 rounded bg-emerald-600 border border-emerald-400"></div>
+            <span className="text-slate-600 dark:text-slate-300">100% {t('heatmap.legend100')}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-emerald-500/20 border border-emerald-500/40" />
-            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legendPartial')}</span>
+            <div className="w-3 h-3 rounded bg-emerald-500/40 border border-emerald-500/60"></div>
+            <span className="text-slate-600 dark:text-slate-300">75% {language === 'he' ? 'התאמה גבוהה' : 'High Match'}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-rose-500/10 border border-rose-500/30" />
-            <span className="text-slate-700 dark:text-slate-300">{t('heatmap.legendNone')}</span>
+            <div className="w-3 h-3 rounded bg-amber-500/30 border border-amber-500/50"></div>
+            <span className="text-slate-600 dark:text-slate-300">50% {t('heatmap.legendPartial')}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 opacity-50" />
-            <span className="text-slate-400 dark:text-slate-500">Past</span>
+            <div className="w-3 h-3 rounded bg-rose-500/15 border border-rose-500/30"></div>
+            <span className="text-slate-600 dark:text-slate-300">0% ({t('heatmap.legend0')})</span>
           </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-slate-100 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800"></div>
+            <span className="text-slate-600 dark:text-slate-300">{t('heatmap.legendPast')}</span>
+          </div>
+        </div>
+
+        <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1">
+          <span>💡</span>
+          <span>{language === 'he' ? 'לחץ על כל משבצת זמן כדי לראות את רשימת המשתתפים המלאה' : 'Click any time box to see full participant details'}</span>
         </div>
       </div>
 
-      {/* Grid Container */}
-      <div className="overflow-x-auto">
-        <div className="min-w-[680px]">
-          {/* Days Header */}
-          <div className="grid grid-cols-8 gap-2 mb-2">
-            <div className="text-xs font-mono font-semibold text-slate-400 dark:text-slate-500 flex items-center justify-center">
-              {t('heatmap.timeCol')}
+      {/* Heatmap Grid Calendar */}
+      <div className="overflow-x-auto select-none">
+        <div className="min-w-[650px]">
+          {/* Day Header Row */}
+          <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-800 pb-3 mb-2 text-center text-xs font-semibold text-slate-500 dark:text-slate-400">
+            <div className="flex items-center justify-center font-mono text-[11px]">
+              {t('cal.timeLabel')}
             </div>
+
             {daysConfig.map((day) => {
-              const isSelected = isSelectedDate(day.date);
               const isToday =
                 day.date.getDate() === now.getDate() &&
                 day.date.getMonth() === now.getMonth() &&
                 day.date.getFullYear() === now.getFullYear();
+
+              const isSelected = isSelectedDate(day.date);
               const dayNumber = day.date.getDate();
 
               return (
                 <div
                   key={day.key}
-                  className={`py-2 px-3 rounded-xl text-center font-mono transition-all flex flex-col items-center justify-center border ${
+                  className={`flex flex-col items-center justify-center py-2 px-1 rounded-2xl transition-colors ${
                     isSelected
-                      ? 'bg-blue-50 dark:bg-blue-600/20 border-blue-400 dark:border-blue-500/60 shadow-md ring-2 ring-blue-500/30'
-                      : 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800'
+                      ? 'bg-blue-500/10 border border-blue-500/40 text-blue-600 dark:text-blue-400 font-bold'
+                      : isToday
+                      ? 'bg-blue-50/50 dark:bg-blue-950/20'
+                      : ''
                   }`}
                 >
-                  <span
-                    className={`text-[11px] font-bold uppercase tracking-wider ${
-                      isSelected
-                        ? 'text-blue-700 dark:text-blue-300'
-                        : isToday
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-slate-500 dark:text-slate-400'
-                    }`}
-                  >
-                    {day.short}
-                  </span>
-
+                  <span className="text-[11px] uppercase tracking-wider">{day.short}</span>
                   <div
-                    className={`mt-1 text-base font-extrabold font-mono transition-all ${
+                    className={`text-base font-extrabold mt-0.5 ${
                       isToday
                         ? 'w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-600/40 ring-2 ring-blue-400'
                         : isSelected
@@ -353,13 +407,14 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
                   const data = slotDataMap[slotKey] || { matchPct: 0, availableCount: 0, totalRequired: 0, availableNames: [] };
                   const colorClasses = getHeatmapColor(data.matchPct);
                   const tooltip = data.availableNames.length > 0
-                    ? `Available (${data.availableCount}/${data.totalRequired}): ${data.availableNames.join(', ')} (${Math.round(data.matchPct)}%)`
-                    : `0/${data.totalRequired} participants available (0%)`;
+                    ? `Available (${data.availableCount}/${data.totalRequired}): ${data.availableNames.join(', ')} (${Math.round(data.matchPct)}%) - Click for full details`
+                    : `0/${data.totalRequired} participants available (0%) - Click for full details`;
 
                   return (
                     <div
                       key={slotKey}
-                      className={`h-9 mx-1 rounded border transition-all flex flex-col items-center justify-center font-mono text-[10px] cursor-pointer ${colorClasses} ${
+                      onClick={() => handleSlotClick(day, slot, data)}
+                      className={`h-9 mx-1 rounded border transition-all flex flex-col items-center justify-center font-mono text-[10px] cursor-pointer hover:scale-105 hover:z-10 hover:shadow-lg active:scale-95 ${colorClasses} ${
                         isSelectedDay ? 'ring-1 ring-blue-500/50 shadow-sm' : ''
                       }`}
                       title={tooltip}
@@ -374,6 +429,13 @@ export function MeetingHeatmap({ participants, selectedDate = new Date() }: Meet
           </div>
         </div>
       </div>
+
+      {/* Interactive Slot Participants Modal Popup */}
+      <SlotParticipantsModal
+        isOpen={!!selectedSlotDetails}
+        slotDetails={selectedSlotDetails}
+        onClose={() => setSelectedSlotDetails(null)}
+      />
     </div>
   );
 }
