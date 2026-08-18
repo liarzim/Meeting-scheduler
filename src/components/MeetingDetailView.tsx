@@ -10,6 +10,7 @@ import { CalendarHeader } from './CalendarHeader';
 import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
+import { UserGuideModal } from './UserGuideModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
@@ -29,6 +30,7 @@ export function MeetingDetailView({
   const [participants, setParticipants] = useState<ParticipantWithDetails[]>(initialParticipants);
   const [isEditingHostAvailability, setIsEditingHostAvailability] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -519,6 +521,15 @@ export function MeetingDetailView({
                   </div>
 
                   <button
+                    onClick={() => setIsGuideOpen(true)}
+                    className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'מדריך למשתמש' : 'User Guide'}
+                  >
+                    <span>📖</span>
+                    <span>{language === 'he' ? 'מדריך למשתמש' : 'User Guide'}</span>
+                  </button>
+
+                  <button
                     onClick={handleManualRefresh}
                     disabled={isRefreshing}
                     className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-colors flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
@@ -547,6 +558,12 @@ export function MeetingDetailView({
         meetingTitle={meeting.title}
         onConfirm={confirmDeleteMeeting}
         onCancel={() => setIsDeleteModalOpen(false)}
+      />
+
+      {/* Interactive User Guide Modal */}
+      <UserGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
       />
     </div>
   );

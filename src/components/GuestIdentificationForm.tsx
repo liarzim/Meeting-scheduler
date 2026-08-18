@@ -7,6 +7,7 @@ import { LanguageToggle } from './LanguageToggle';
 import { useLanguage } from '@/context/LanguageContext';
 import { updateParticipantSlots, normalizeKey } from '@/lib/meetingStore';
 import { PhoneInputWithCountry } from './PhoneInputWithCountry';
+import { UserGuideModal } from './UserGuideModal';
 
 interface GuestIdentificationFormProps {
   meetingId: string;
@@ -29,6 +30,7 @@ export function GuestIdentificationForm({
   const [role, setRole] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [autoFilled, setAutoFilled] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Clean title for display
   const cleanTitle = useMemo(() => {
@@ -169,11 +171,22 @@ export function GuestIdentificationForm({
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 shadow-xl dark:shadow-2xl max-w-xl mx-auto space-y-6 text-slate-900 dark:text-slate-100 transition-colors" dir={dir}>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400 text-xs font-semibold uppercase tracking-wider">
           {t('invitee.regBadge')}
         </div>
-        <LanguageToggle />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setIsGuideOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all border border-blue-200 dark:border-blue-800 shadow-sm hover:scale-105 active:scale-95"
+            title={language === 'he' ? 'מדריך למשתמש' : 'User Guide'}
+          >
+            <span>📖</span>
+            <span>{language === 'he' ? 'מדריך למשתמש' : 'User Guide'}</span>
+          </button>
+          <LanguageToggle />
+        </div>
       </div>
 
       <div className="text-center space-y-2">
@@ -283,6 +296,12 @@ export function GuestIdentificationForm({
           {isSubmitting ? (language === 'he' ? 'שומר פרטים...' : 'Saving...') : `➔ ${t('invitee.continueBtn')}`}
         </button>
       </form>
+
+      {/* Interactive User Guide Modal */}
+      <UserGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
     </div>
   );
 }

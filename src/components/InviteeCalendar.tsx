@@ -9,6 +9,7 @@ import { TimezoneSelector } from './TimezoneSelector';
 import { getWeekDates, formatDateShort } from '@/lib/timezone';
 import { updateParticipantSlots, getStoredMeetingData, normalizeKey } from '@/lib/meetingStore';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
+import { UserGuideModal } from './UserGuideModal';
 
 interface InviteeCalendarProps {
   meetingId?: string;
@@ -53,6 +54,7 @@ export function InviteeCalendar({
   const [weekOffset, setWeekOffset] = useState(0);
   const [timezone, setTimezone] = useState('');
   const [viewMode, setViewMode] = useState<'CALENDAR' | 'HEATMAP'>('CALENDAR');
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const isLoadingRef = useRef(false);
 
   // All group participants state
@@ -537,7 +539,17 @@ export function InviteeCalendar({
           )}
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          {/* User Guide Button */}
+          <button
+            onClick={() => setIsGuideOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all border border-blue-200 dark:border-blue-800 shadow-sm hover:scale-105 active:scale-95"
+            title={language === 'he' ? 'מדריך למשתמש' : 'User Guide'}
+          >
+            <span>📖</span>
+            <span className="hidden sm:inline">{language === 'he' ? 'מדריך למשתמש' : 'User Guide'}</span>
+          </button>
+
           <LanguageToggle />
 
           <button
@@ -869,6 +881,12 @@ export function InviteeCalendar({
           </button>
         </div>
       )}
+
+      {/* Interactive User Guide Modal */}
+      <UserGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
     </div>
   );
 }
