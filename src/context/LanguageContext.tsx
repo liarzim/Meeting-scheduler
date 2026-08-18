@@ -16,13 +16,48 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguageState] = useState<Language>('en');
 
-  // Load language preference from localStorage on mount
+  // Detect language based on user's computer / browser settings on initial load
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // 1. Check if user already manually selected a preferred language
       const saved = localStorage.getItem('app_language') as Language;
       if (saved && (saved === 'en' || saved === 'he')) {
         setLanguageState(saved);
+        return;
       }
+
+      // 2. Check pre-computed initial lang from head script
+      const initialWindowLang = (window as any).__INITIAL_LANG__;
+      if (initialWindowLang === 'he' || initialWindowLang === 'en') {
+        setLanguageState(initialWindowLang);
+        return;
+      }
+
+      // 3. Check browser & OS languages (navigator.languages and navigator.language)
+      const browserLangs = navigator.languages || [navigator.language || ''];
+      for (const l of browserLangs) {
+        if (!l) continue;
+        const lower = l.toLowerCase();
+        // 'he', 'he-IL', 'iw', 'iw-IL' (iw is legacy Hebrew code)
+        if (lower.startsWith('he') || lower.startsWith('iw')) {
+          setLanguageState('he');
+          return;
+        }
+      }
+
+      // 4. Check system timezone as fallback for Israeli systems
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        if (tz.includes('Jerusalem') || tz.includes('Tel_Aviv')) {
+          setLanguageState('he');
+          return;
+        }
+      } catch (e) {
+        console.error('Error detecting timezone for language:', e);
+      }
+
+      // Default fallback
+      setLanguageState('en');
     }
   }, []);
 
@@ -43,7 +78,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   };
 
   const toggleLanguage = () => {
-    setLanguage(language === 'en' ? 'he' : 'en');
+    const nextLang = language === 'en' ? 'he' : 'en';
+    setLanguage(nextLang);
   };
 
   const t = (key: TranslationKey): string => {
