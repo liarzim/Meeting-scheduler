@@ -37,6 +37,8 @@ export function MeetingDetailView({
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
+  const [hostName, setHostName] = useState('');
+  const [hostEmail, setHostEmail] = useState('');
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -47,6 +49,29 @@ export function MeetingDetailView({
   useEffect(() => {
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
   }, [meeting.slug]);
+
+  useEffect(() => {
+    const cookieHost = getGuestCookie();
+    const hostPart =
+      participants.find((p) => p.profile?.is_organizer) ||
+      participants.find((p) => cookieHost?.email && p.profile?.email?.toLowerCase() === cookieHost.email.toLowerCase()) ||
+      participants[0];
+
+    const hName =
+      hostPart?.profile?.full_name?.replace(' (Host)', '').trim() ||
+      cookieHost?.full_name ||
+      (typeof window !== 'undefined' ? localStorage.getItem('meeting_host_name') : null) ||
+      '';
+
+    const hEmail =
+      hostPart?.profile?.email?.trim() ||
+      cookieHost?.email ||
+      (typeof window !== 'undefined' ? localStorage.getItem('meeting_host_email') : null) ||
+      '';
+
+    setHostName(hName);
+    setHostEmail(hEmail);
+  }, [participants]);
 
   // Sync state from server-side fetched initialMeeting and local meetingStore immediately
   useEffect(() => {
@@ -680,67 +705,44 @@ export function MeetingDetailView({
       />
 
       {/* Send Email Invitations Modal */}
-      {(() => {
-        const hostCookie = getGuestCookie();
-        const hostParticipant =
-          participants.find((p) => p.profile?.is_organizer) ||
-          participants.find((p) => hostCookie?.email && p.profile?.email?.toLowerCase() === hostCookie.email.toLowerCase()) ||
-          participants[0];
+      <SendEmailInviteModal
+        isOpen={isEmailModalOpen}
+        meeting={meeting}
+        shareableUrl={shareableUrl}
+        hostName={hostName}
+        hostEmail={hostEmail}
+        existingInvitedEmails={participants.filter((p) => !p.profile?.is_organizer && p.profile?.email).map((p) => p.profile?.email as string)}
+        onClose={() => setIsEmailModalOpen(false)}
+      />
 
-        const resolvedHostName =
-          hostParticipant?.profile?.full_name?.replace(' (Host)', '').trim() ||
-          hostCookie?.full_name ||
-          (typeof window !== 'undefined' ? localStorage.getItem('meeting_host_name') : null) ||
-          '';
-
-        const resolvedHostEmail =
-          hostParticipant?.profile?.email?.trim() ||
-          hostCookie?.email ||
-          (typeof window !== 'undefined' ? localStorage.getItem('meeting_host_email') : null) ||
-          '';
-
-        return (
-          <>
-            <SendEmailInviteModal
-              isOpen={isEmailModalOpen}
-              meeting={meeting}
-              shareableUrl={shareableUrl}
-              hostName={resolvedHostName}
-              hostEmail={resolvedHostEmail}
-              existingInvitedEmails={participants.filter((p) => !p.profile?.is_organizer && p.profile?.email).map((p) => p.profile?.email as string)}
-              onClose={() => setIsEmailModalOpen(false)}
-            />
-
-            <EditParticipantModal
-              isOpen={!!participantToEdit}
-              participant={participantToEdit}
-              meetingId={meeting.id}
-              meetingSlug={meeting.slug}
-              meetingTitle={meeting.title}
-              meetingDescription={meeting.description || ''}
-              shareableUrl={shareableUrl}
-              hostName={resolvedHostName}
-              hostEmail={resolvedHostEmail}
-              onClose={() => setParticipantToEdit(null)}
-              onSuccess={(updatedParticipant) => {
-                setParticipants((prev) =>
-                  prev.map((p) => {
-                    if (
-                      p.id === updatedParticipant.id ||
-                      (p.profile?.email &&
-                        updatedParticipant.profile?.email &&
-                        p.profile.email.toLowerCase() === updatedParticipant.profile.email.toLowerCase())
-                    ) {
-                      return updatedParticipant;
-                    }
-                    return p;
-                  })
-                );
-              }}
-            />
-          </>
-        );
-      })()}
+      {/* Edit Participant Details Modal */}
+      <EditParticipantModal
+        isOpen={!!participantToEdit}
+        participant={participantToEdit}
+        meetingId={meeting.id}
+        meetingSlug={meeting.slug}
+        meetingTitle={meeting.title}
+        meetingDescription={meeting.description || ''}
+        shareableUrl={shareableUrl}
+        hostName={hostName}
+        hostEmail={hostEmail}
+        onClose={() => setParticipantToEdit(null)}
+        onSuccess={(updatedParticipant) => {
+          setParticipants((prev) =>
+            prev.map((p) => {
+              if (
+                p.id === updatedParticipant.id ||
+                (p.profile?.email &&
+                  updatedParticipant.profile?.email &&
+                  p.profile.email.toLowerCase() === updatedParticipant.profile.email.toLowerCase())
+              ) {
+                return updatedParticipant;
+              }
+              return p;
+            })
+          );
+        }}
+      />
     </div>
   );
 }
