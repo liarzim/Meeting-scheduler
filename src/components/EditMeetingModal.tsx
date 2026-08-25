@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Meeting } from '@/types';
 import { saveStoredMeeting, saveStoredMeetingData, getStoredMeetingData } from '@/lib/meetingStore';
+import { setGuestCookie } from '@/lib/cookies';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface EditMeetingModalProps {

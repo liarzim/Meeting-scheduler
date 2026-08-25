@@ -16,7 +16,7 @@ import { SendEmailInviteModal } from './SendEmailInviteModal';
 import { EditParticipantModal } from './EditParticipantModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
-import type { GuestInfo } from '@/lib/cookies';
+import { getGuestCookie, type GuestInfo } from '@/lib/cookies';
 
 interface MeetingDetailViewProps {
   initialMeeting: Meeting;
