@@ -49,12 +49,13 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
   // Fetch past participants when modal opens
   useEffect(() => {
     if (isOpen) {
+      setSelectedCompany('ALL');
+      setSearchQuery('');
       setIsLoadingPast(true);
       fetchPastParticipants()
         .then((profiles) => {
           setPastParticipants(profiles);
         })
-
         .finally(() => {
           setIsLoadingPast(false);
         });
