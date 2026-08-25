@@ -44,12 +44,41 @@ export function MeetingDetailView({
     setShareableUrl(`${window.location.origin}/${meeting.slug}`);
   }, [meeting.slug]);
 
-  // Sync state from server-side fetched initialMeeting and initialParticipants immediately
+  // Sync state from server-side fetched initialMeeting and local meetingStore immediately
   useEffect(() => {
-    if (initialMeeting) {
+    const normSlug = normalizeKey(initialMeeting?.slug || meeting.slug);
+    const normId = normalizeKey(initialMeeting?.id || meeting.id);
+    const localMeeting = getStoredMeetingBySlug(normSlug) || getStoredMeetingBySlug(normId);
+
+    if (localMeeting && localMeeting.title) {
+      let cleanTitle = localMeeting.title || '';
+      let cleanDesc = localMeeting.description || '';
+      if (cleanTitle.includes(':::')) {
+        const parts = cleanTitle.split(':::');
+        cleanTitle = parts[0];
+        cleanDesc = parts.slice(1).join(':::');
+      }
+
+      setMeeting((prev) => ({
+        ...prev,
+        ...localMeeting,
+        title: cleanTitle,
+        description: cleanDesc || prev.description,
+      }));
+    } else if (initialMeeting) {
+      let cleanTitle = initialMeeting.title || '';
+      let cleanDesc = initialMeeting.description || '';
+      if (cleanTitle.includes(':::')) {
+        const parts = cleanTitle.split(':::');
+        cleanTitle = parts[0];
+        cleanDesc = parts.slice(1).join(':::');
+      }
+
       setMeeting((prev) => ({
         ...prev,
         ...initialMeeting,
+        title: cleanTitle,
+        description: cleanDesc || prev.description,
       }));
     }
   }, [initialMeeting]);
@@ -154,6 +183,24 @@ export function MeetingDetailView({
       }
 
       // 2. Fallback to local meetingStore if DB returned nothing
+      const localMeeting = getStoredMeetingBySlug(normSlug) || getStoredMeetingBySlug(normId);
+      if (localMeeting && localMeeting.title) {
+        let cleanTitle = localMeeting.title || '';
+        let cleanDesc = localMeeting.description || '';
+        if (cleanTitle.includes(':::')) {
+          const parts = cleanTitle.split(':::');
+          cleanTitle = parts[0];
+          cleanDesc = parts.slice(1).join(':::');
+        }
+        setMeeting((prev) => ({
+          ...prev,
+          ...localMeeting,
+          title: cleanTitle,
+          description: cleanDesc || prev.description,
+          status: localMeeting.status || prev.status,
+        }));
+      }
+
       const stored =
         getStoredMeetingData(meeting.id) ||
         getStoredMeetingData(meeting.slug) ||

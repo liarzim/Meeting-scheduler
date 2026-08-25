@@ -82,23 +82,41 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     const hostPartId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
 
     try {
-      // 1. Upsert Profile in Supabase
-      const { data: profResult } = await (supabase.from('profiles') as any)
-        .upsert(
-          [
-            {
-              id: hostProfId,
-              email: cleanEmail,
-              full_name: `${cleanName} (Host)`,
-              is_organizer: true,
-            },
-          ],
-          { onConflict: 'email' }
-        )
-        .select()
-        .single();
+      // 1. Check or Upsert Profile in Supabase safely
+      let finalProfId = hostProfId;
+      const { data: existingProf } = await (supabase.from('profiles') as any)
+        .select('id')
+        .eq('email', cleanEmail)
+        .maybeSingle();
 
-      const finalProfId = profResult?.id || hostProfId;
+      if (existingProf?.id) {
+        finalProfId = existingProf.id;
+        await (supabase.from('profiles') as any)
+          .update({
+            full_name: `${cleanName} (Host)`,
+            is_organizer: true,
+          })
+          .eq('id', finalProfId);
+      } else {
+        const { data: insertedProf } = await (supabase.from('profiles') as any)
+          .upsert(
+            [
+              {
+                id: hostProfId,
+                email: cleanEmail,
+                full_name: `${cleanName} (Host)`,
+                is_organizer: true,
+              },
+            ],
+            { onConflict: 'email' }
+          )
+          .select('id')
+          .maybeSingle();
+
+        if (insertedProf?.id) {
+          finalProfId = insertedProf.id;
+        }
+      }
 
       // 2. Insert into Supabase meetings table
       await (supabase.from('meetings') as any)
