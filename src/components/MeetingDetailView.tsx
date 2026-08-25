@@ -14,6 +14,7 @@ import { UserGuideModal } from './UserGuideModal';
 import { EditMeetingModal } from './EditMeetingModal';
 import { SendEmailInviteModal } from './SendEmailInviteModal';
 import { EditParticipantModal } from './EditParticipantModal';
+import { AddPastParticipantsModal } from './AddPastParticipantsModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import { getGuestCookie, type GuestInfo } from '@/lib/cookies';
@@ -36,6 +37,7 @@ export function MeetingDetailView({
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isPastParticipantsModalOpen, setIsPastParticipantsModalOpen] = useState(false);
   const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
   const [hostName, setHostName] = useState('');
   const [hostEmail, setHostEmail] = useState('');
@@ -447,6 +449,15 @@ export function MeetingDetailView({
     }
   };
 
+  const handleBatchAddParticipants = async (
+    selectedList: { name: string; email: string; company?: string; role?: string; isRequired: boolean }[]
+  ) => {
+    if (!selectedList || selectedList.length === 0) return;
+    for (const item of selectedList) {
+      await handleAddParticipant(item.name, item.email);
+    }
+  };
+
   const handleRemoveParticipant = async (participantId: string) => {
     const target = participants.find(
       (p) => p.id === participantId || (p.profile?.email && p.profile.email.toLowerCase() === participantId.toLowerCase())
@@ -516,6 +527,7 @@ export function MeetingDetailView({
           onRemoveParticipant={handleRemoveParticipant}
           onAddParticipant={handleAddParticipant}
           onOpenEmailModal={() => setIsEmailModalOpen(true)}
+          onOpenPastParticipantsModal={() => setIsPastParticipantsModalOpen(true)}
           onEditParticipant={(p) => setParticipantToEdit(p)}
         />
 
@@ -746,6 +758,14 @@ export function MeetingDetailView({
             })
           );
         }}
+      />
+
+      {/* Add Past Participants Modal */}
+      <AddPastParticipantsModal
+        isOpen={isPastParticipantsModalOpen}
+        existingParticipants={participants}
+        onClose={() => setIsPastParticipantsModalOpen(false)}
+        onAddParticipants={handleBatchAddParticipants}
       />
     </div>
   );

@@ -14,6 +14,7 @@ interface CalendarSidebarProps {
   onRemoveParticipant?: (id: string) => void;
   onAddParticipant?: (name: string, email: string) => void;
   onOpenEmailModal?: () => void;
+  onOpenPastParticipantsModal?: () => void;
   onEditParticipant?: (participant: ParticipantWithDetails) => void;
 }
 
@@ -26,6 +27,7 @@ export function CalendarSidebar({
   onRemoveParticipant,
   onAddParticipant,
   onOpenEmailModal,
+  onOpenPastParticipantsModal,
   onEditParticipant,
 }: CalendarSidebarProps) {
   const { t, dir, language } = useLanguage();
@@ -183,6 +185,16 @@ export function CalendarSidebar({
                 {t('detail.addPartBtn')}
               </button>
             </form>
+          )}
+
+          {onOpenPastParticipantsModal && (
+            <button
+              onClick={onOpenPastParticipantsModal}
+              className="w-full py-2.5 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all flex items-center justify-center gap-2 border border-blue-200 dark:border-blue-800 shadow-xs"
+            >
+              <span>👥</span>
+              <span>{language === 'he' ? 'הוסף משתתפים קודמים (לפי חברה)' : 'Add Past Participants (By Company)'}</span>
+            </button>
           )}
 
           {onOpenEmailModal && (
