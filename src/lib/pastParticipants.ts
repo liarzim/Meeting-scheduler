@@ -10,58 +10,66 @@ export interface PastParticipantProfile extends Profile {
 export async function fetchPastParticipants(): Promise<PastParticipantProfile[]> {
   const profileMap = new Map<string, PastParticipantProfile>();
 
-  // 1. Fetch from Supabase meeting_participants joined with profiles
-  try {
-    const { data: dbParticipants, error: mpErr } = await (supabase.from('meeting_participants') as any)
-      .select('id, is_required, profiles(id, full_name, email, company, role, phone_number, is_organizer)');
+  // Helper to add profile
+  const addProfile = (prof: {
+    id?: string;
+    email?: string;
+    full_name?: string;
+    company?: string | null;
+    role?: string | null;
+    phone_number?: string | null;
+    is_organizer?: boolean;
+  }) => {
+    if (!prof || !prof.email) return;
+    const em = prof.email.trim().toLowerCase();
+    if (!em || em === 'organizer@company.com' || em === 'host@company.com') return;
 
-    if (!mpErr && dbParticipants) {
-      dbParticipants.forEach((mp: any) => {
-        const p = mp.profiles;
-        if (p) {
-          const em = (p.email || '').trim().toLowerCase();
-          if (em && em !== 'organizer@company.com' && em !== 'host@company.com') {
-            profileMap.set(em, {
-              id: p.id || mp.id,
-              email: em,
-              full_name: p.full_name?.replace(' (Host)', '').trim() || em.split('@')[0],
-              company: p.company?.trim() || 'Unassigned',
-              role: p.role?.trim() || '',
-              phone_number: p.phone_number || null,
-              is_organizer: !!p.is_organizer,
-            });
-          }
-        }
-      });
-    }
-  } catch (err) {
-    console.warn('Notice fetching Supabase meeting_participants:', err);
-  }
+    const existing = profileMap.get(em);
+    const cleanName = prof.full_name?.replace(' (Host)', '').trim() || existing?.full_name || em.split('@')[0];
+    const cleanCompany = prof.company?.trim() || existing?.company || 'Unassigned';
 
-  // 2. Fetch from Supabase profiles table as backup
+    profileMap.set(em, {
+      id: prof.id || existing?.id || `prof-${Date.now()}`,
+      email: em,
+      full_name: cleanName,
+      company: cleanCompany,
+      role: prof.role?.trim() || existing?.role || '',
+      phone_number: prof.phone_number || existing?.phone_number || null,
+      is_organizer: typeof prof.is_organizer === 'boolean' ? prof.is_organizer : existing?.is_organizer || false,
+    });
+  };
+
+  // 1. Direct query to Supabase profiles table
   try {
-    const { data: dbProfiles, error } = await (supabase.from('profiles') as any)
+    const { data: dbProfiles, error: pErr } = await (supabase.from('profiles') as any)
       .select('id, full_name, email, company, role, phone_number, is_organizer');
 
-    if (!error && dbProfiles) {
-      dbProfiles.forEach((p: any) => {
-        const em = (p.email || '').trim().toLowerCase();
-        if (em && em !== 'organizer@company.com' && em !== 'host@company.com') {
-          const existing = profileMap.get(em);
-          profileMap.set(em, {
-            id: p.id || existing?.id || `prof-${Date.now()}`,
-            email: em,
-            full_name: p.full_name?.replace(' (Host)', '').trim() || existing?.full_name || em.split('@')[0],
-            company: p.company?.trim() || existing?.company || 'Unassigned',
-            role: p.role?.trim() || existing?.role || '',
-            phone_number: p.phone_number || existing?.phone_number || null,
-            is_organizer: !!p.is_organizer || existing?.is_organizer || false,
-          });
-        }
-      });
+    if (!pErr && Array.isArray(dbProfiles)) {
+      dbProfiles.forEach((p) => addProfile(p));
     }
   } catch (err) {
-    console.warn('Notice fetching Supabase past profiles:', err);
+    console.warn('Notice querying Supabase profiles:', err);
+  }
+
+  // 2. Query Supabase meeting_participants table
+  try {
+    const { data: dbParticipants, error: mpErr } = await (supabase.from('meeting_participants') as any)
+      .select('id, profile_id');
+
+    if (!mpErr && Array.isArray(dbParticipants)) {
+      const pIds = dbParticipants.map((mp: any) => mp.profile_id).filter(Boolean);
+      if (pIds.length > 0) {
+        const { data: matchedProfiles } = await (supabase.from('profiles') as any)
+          .select('id, full_name, email, company, role, phone_number, is_organizer')
+          .in('id', pIds);
+
+        if (Array.isArray(matchedProfiles)) {
+          matchedProfiles.forEach((p) => addProfile(p));
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Notice querying Supabase meeting_participants:', err);
   }
 
   // 3. Scan local meetingStore for any locally saved participant profiles
@@ -71,19 +79,7 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
       const parts = getStoredMeetingData(m.id) || getStoredMeetingData(m.slug) || [];
       parts.forEach((part) => {
         if (part?.profile) {
-          const em = (part.profile.email || '').trim().toLowerCase();
-          if (em && em !== 'organizer@company.com' && em !== 'host@company.com') {
-            const existing = profileMap.get(em);
-            profileMap.set(em, {
-              id: part.profile.id || existing?.id || `prof-${Date.now()}`,
-              email: em,
-              full_name: part.profile.full_name?.replace(' (Host)', '').trim() || existing?.full_name || em.split('@')[0],
-              company: part.profile.company?.trim() || existing?.company || 'Unassigned',
-              role: part.profile.role?.trim() || existing?.role || '',
-              phone_number: part.profile.phone_number || existing?.phone_number || null,
-              is_organizer: part.profile.is_organizer || existing?.is_organizer || false,
-            });
-          }
+          addProfile(part.profile);
         }
       });
     });

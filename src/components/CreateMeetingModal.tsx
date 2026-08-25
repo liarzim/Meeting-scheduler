@@ -75,11 +75,14 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
   const companiesList = useMemo(() => {
     const set = new Set<string>();
     pastParticipants.forEach((p) => {
-      if (p.company && p.company.trim()) {
-        set.add(p.company.trim());
-      }
+      const c = p.company?.trim() || 'Unassigned';
+      set.add(c);
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => {
+      if (a === 'Unassigned') return 1;
+      if (b === 'Unassigned') return -1;
+      return a.localeCompare(b);
+    });
   }, [pastParticipants]);
 
   // Filtered past participants list
@@ -91,16 +94,19 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
       }
 
       // Company Filter
-      if (selectedCompany !== 'ALL' && p.company.toLowerCase() !== selectedCompany.toLowerCase()) {
-        return false;
+      if (selectedCompany !== 'ALL') {
+        const comp = p.company?.trim() || 'Unassigned';
+        if (comp.toLowerCase() !== selectedCompany.toLowerCase()) {
+          return false;
+        }
       }
 
       // Search Query Filter
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
-        const matchName = p.full_name.toLowerCase().includes(q);
-        const matchEmail = p.email.toLowerCase().includes(q);
-        const matchCompany = p.company.toLowerCase().includes(q);
+        const matchName = (p.full_name || '').toLowerCase().includes(q);
+        const matchEmail = (p.email || '').toLowerCase().includes(q);
+        const matchCompany = (p.company || '').toLowerCase().includes(q);
         const matchRole = (p.role || '').toLowerCase().includes(q);
         return matchName || matchEmail || matchCompany || matchRole;
       }
@@ -495,10 +501,13 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
                         {language === 'he' ? `🏢 כל החברות (${pastParticipants.length})` : `🏢 All Companies (${pastParticipants.length})`}
                       </option>
                       {companiesList.map((company) => {
-                        const count = pastParticipants.filter((p) => p.company?.toLowerCase() === company.toLowerCase()).length;
+                        const count = pastParticipants.filter((p) => (p.company?.trim() || 'Unassigned').toLowerCase() === company.toLowerCase()).length;
+                        const label = company === 'Unassigned'
+                          ? (language === 'he' ? `ללא שיוך חברה (${count})` : `Unassigned / General (${count})`)
+                          : `${company} (${count})`;
                         return (
                           <option key={company} value={company}>
-                            {company} ({count})
+                            {label}
                           </option>
                         );
                       })}
