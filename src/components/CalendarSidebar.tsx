@@ -14,6 +14,7 @@ interface CalendarSidebarProps {
   onRemoveParticipant?: (id: string) => void;
   onAddParticipant?: (name: string, email: string) => void;
   onOpenEmailModal?: () => void;
+  onEditParticipant?: (participant: ParticipantWithDetails) => void;
 }
 
 export function CalendarSidebar({
@@ -25,6 +26,7 @@ export function CalendarSidebar({
   onRemoveParticipant,
   onAddParticipant,
   onOpenEmailModal,
+  onEditParticipant,
 }: CalendarSidebarProps) {
   const { t, dir, language } = useLanguage();
   const [newName, setNewName] = useState('');
@@ -83,11 +85,15 @@ export function CalendarSidebar({
               return (
                 <div
                   key={p.id}
-                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 transition-all flex items-center justify-between gap-2"
+                  onClick={() => onEditParticipant && onEditParticipant(p)}
+                  className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-blue-500/60 dark:hover:border-blue-500/60 transition-all flex items-center justify-between gap-2 ${
+                    onEditParticipant ? 'cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-900' : ''
+                  }`}
+                  title={language === 'he' ? 'לחץ לצפייה ועריכת פרטי המשתתף' : 'Click to view & edit participant details'}
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-semibold text-slate-900 dark:text-slate-200 text-xs truncate">
+                      <span className="font-semibold text-slate-900 dark:text-slate-200 text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                         {p.profile?.full_name || p.profile?.email || 'Anonymous Guest'}
                       </span>
                       {p.profile?.is_organizer && (
@@ -108,9 +114,21 @@ export function CalendarSidebar({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    {onEditParticipant && (
+                      <button
+                        type="button"
+                        onClick={() => onEditParticipant(p)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors text-xs"
+                        title={language === 'he' ? 'ערוך פרטי משתתף' : 'Edit participant details'}
+                      >
+                        ✏️
+                      </button>
+                    )}
+
                     {onToggleRequired && (
                       <button
+                        type="button"
                         onClick={() => onToggleRequired(p.id)}
                         className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all shrink-0 ${
                           p.is_required
@@ -124,6 +142,7 @@ export function CalendarSidebar({
 
                     {!p.profile?.is_organizer && onRemoveParticipant && (
                       <button
+                        type="button"
                         onClick={() => onRemoveParticipant(p.id)}
                         className="p-1 rounded-lg text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-xs"
                         title={language === 'he' ? 'הסר משתתף' : 'Remove participant'}

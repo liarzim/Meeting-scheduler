@@ -13,6 +13,7 @@ import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { UserGuideModal } from './UserGuideModal';
 import { EditMeetingModal } from './EditMeetingModal';
 import { SendEmailInviteModal } from './SendEmailInviteModal';
+import { EditParticipantModal } from './EditParticipantModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
@@ -35,6 +36,7 @@ export function MeetingDetailView({
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -474,6 +476,7 @@ export function MeetingDetailView({
           onRemoveParticipant={handleRemoveParticipant}
           onAddParticipant={handleAddParticipant}
           onOpenEmailModal={() => setIsEmailModalOpen(true)}
+          onEditParticipant={(p) => setParticipantToEdit(p)}
         />
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
@@ -674,6 +677,30 @@ export function MeetingDetailView({
         hostEmail={participants.find((p) => p.profile?.is_organizer)?.profile?.email || ''}
         existingInvitedEmails={participants.filter((p) => !p.profile?.is_organizer && p.profile?.email).map((p) => p.profile?.email as string)}
         onClose={() => setIsEmailModalOpen(false)}
+      />
+
+      {/* Edit Participant Details Modal */}
+      <EditParticipantModal
+        isOpen={!!participantToEdit}
+        participant={participantToEdit}
+        meetingId={meeting.id}
+        meetingSlug={meeting.slug}
+        onClose={() => setParticipantToEdit(null)}
+        onSuccess={(updatedParticipant) => {
+          setParticipants((prev) =>
+            prev.map((p) => {
+              if (
+                p.id === updatedParticipant.id ||
+                (p.profile?.email &&
+                  updatedParticipant.profile?.email &&
+                  p.profile.email.toLowerCase() === updatedParticipant.profile.email.toLowerCase())
+              ) {
+                return updatedParticipant;
+              }
+              return p;
+            })
+          );
+        }}
       />
     </div>
   );
