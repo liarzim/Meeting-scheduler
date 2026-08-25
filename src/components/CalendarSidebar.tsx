@@ -80,11 +80,11 @@ export function CalendarSidebar({
 
           {/* Participant Cards */}
           <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-            {participants.map((p) => {
-              const slotCount = p.availability?.length || 0;
+            {participants.filter(Boolean).map((p) => {
+              const slotCount = p?.availability?.length || 0;
               return (
                 <div
-                  key={p.id}
+                  key={p.id || Math.random().toString()}
                   onClick={() => onEditParticipant && onEditParticipant(p)}
                   className={`p-2.5 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800/80 hover:border-blue-500/60 dark:hover:border-blue-500/60 transition-all flex items-center justify-between gap-2 ${
                     onEditParticipant ? 'cursor-pointer group hover:bg-slate-100 dark:hover:bg-slate-900' : ''

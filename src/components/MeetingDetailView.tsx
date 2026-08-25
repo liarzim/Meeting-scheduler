@@ -54,10 +54,12 @@ export function MeetingDetailView({
 
   useEffect(() => {
     const cookieHost = getGuestCookie();
+    const cleanParts = (participants || []).filter(Boolean);
     const hostPart =
-      participants.find((p) => p.profile?.is_organizer) ||
-      participants.find((p) => cookieHost?.email && p.profile?.email?.toLowerCase() === cookieHost.email.toLowerCase()) ||
-      participants[0];
+      cleanParts.find((p) => p.profile?.is_organizer) ||
+      cleanParts.find((p) => cookieHost?.email && p.profile?.email && p.profile.email.toLowerCase() === cookieHost.email.toLowerCase()) ||
+      cleanParts[0] ||
+      null;
 
     const hName =
       hostPart?.profile?.full_name?.replace(' (Host)', '').trim() ||

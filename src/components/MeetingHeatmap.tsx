@@ -135,7 +135,7 @@ export function MeetingHeatmap({
   ], [t, weekDates]);
 
   const requiredParticipants = useMemo(() => {
-    return participants.filter((p) => p.is_required !== false);
+    return (participants || []).filter((p) => p && p.is_required !== false);
   }, [participants]);
 
   const slotDataMap = useMemo(() => {
@@ -155,16 +155,20 @@ export function MeetingHeatmap({
         const availableNames: string[] = [];
 
         requiredParticipants.forEach((participant) => {
-          if (!participant.availability || participant.availability.length === 0) return;
+          if (!participant || !participant.availability || participant.availability.length === 0) return;
 
           const isMatch = participant.availability.some((av) => {
+            if (!av) return false;
             // 1. Direct slot_key match
             if (av.slot_key && av.slot_key === targetSlotKey) {
               return true;
             }
 
             // 2. Local date & time match fallback
+            if (!av.start_time) return false;
             const start = new Date(av.start_time);
+            if (isNaN(start.getTime())) return false;
+
             const isSameDay =
               start.getFullYear() === day.date.getFullYear() &&
               start.getMonth() === day.date.getMonth() &&
@@ -214,15 +218,19 @@ export function MeetingHeatmap({
     const availableParticipants: ParticipantWithDetails[] = [];
     const unavailableParticipants: ParticipantWithDetails[] = [];
 
-    participants.forEach((p) => {
+    (participants || []).forEach((p) => {
+      if (!p) return;
       if (!p.availability || p.availability.length === 0) {
         unavailableParticipants.push(p);
         return;
       }
 
       const isMatch = p.availability.some((av) => {
+        if (!av) return false;
         if (av.slot_key && av.slot_key === targetSlotKey) return true;
+        if (!av.start_time) return false;
         const start = new Date(av.start_time);
+        if (isNaN(start.getTime())) return false;
         const isSameDay =
           start.getFullYear() === day.date.getFullYear() &&
           start.getMonth() === day.date.getMonth() &&
