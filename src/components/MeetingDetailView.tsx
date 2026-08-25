@@ -402,15 +402,10 @@ export function MeetingDetailView({
     }
   };
 
-  const handleAddParticipant = async (name: string, email: string) => {
+  const handleAddParticipant = async (name: string, email: string, company?: string, role?: string, isRequired: boolean = true) => {
     const cleanEmail = email.trim().toLowerCase();
-    const cleanName = name.trim();
+    const cleanName = name.trim() || cleanEmail.split('@')[0];
     if (!cleanEmail) return;
-
-    // Check if participant already in list
-    if (participants.some((p) => (p.profile?.email || '').toLowerCase() === cleanEmail)) {
-      return;
-    }
 
     const newProfId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
     const newPartId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
@@ -419,31 +414,76 @@ export function MeetingDetailView({
       id: newPartId,
       meeting_id: meeting.id,
       profile_id: newProfId,
-      is_required: true,
+      is_required: isRequired,
       profile: {
         id: newProfId,
         email: cleanEmail,
         full_name: cleanName,
-        company: null,
+        company: company || null,
+        role: role || null,
         phone_number: null,
         is_organizer: false,
       },
       availability: [],
     };
 
-    setParticipants((prev) => [...prev, newParticipant]);
+    // Optimistically update React State AND local meetingStore immediately
+    setParticipants((prev) => {
+      if (prev.some((p) => (p.profile?.email || '').toLowerCase() === cleanEmail)) {
+        return prev;
+      }
+      const updated = [...prev, newParticipant];
+      saveStoredMeetingData(meeting.id, updated, true);
+      saveStoredMeetingData(meeting.slug, updated, true);
+      return updated;
+    });
 
-    // Upsert into Supabase so participant is already in DB when invitee arrives
+    // Upsert into Supabase DB
     try {
       const { data: profResult } = await (supabase.from('profiles') as any)
-        .upsert([{ id: newProfId, email: cleanEmail, full_name: cleanName, is_organizer: false }], { onConflict: 'email' })
+        .upsert(
+          [
+            {
+              id: newProfId,
+              email: cleanEmail,
+              full_name: cleanName,
+              company: company || null,
+              role: role || null,
+              is_organizer: false,
+            },
+          ],
+          { onConflict: 'email' }
+        )
         .select()
         .single();
 
       const finalProfId = profResult?.id || newProfId;
 
+      const normKey = normalizeKey(meeting.id || meeting.slug);
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+      let meetingQuery = (supabase.from('meetings') as any).select('id');
+      if (isUUID(normKey)) {
+        meetingQuery = meetingQuery.or(`id.eq.${normKey},slug.eq.${normKey}`);
+      } else {
+        meetingQuery = meetingQuery.eq('slug', normKey);
+      }
+
+      const { data: mRes } = await meetingQuery.maybeSingle();
+      const realMeetingId = mRes?.id || normKey;
+
       await (supabase.from('meeting_participants') as any)
-        .upsert([{ id: newPartId, meeting_id: meeting.id, profile_id: finalProfId, is_required: true }], { onConflict: 'id' });
+        .upsert(
+          [
+            {
+              id: newPartId,
+              meeting_id: realMeetingId,
+              profile_id: finalProfId,
+              is_required: isRequired,
+            },
+          ],
+          { onConflict: 'id' }
+        );
     } catch (err) {
       console.warn('Supabase DB add participant notice:', err);
     }
@@ -454,7 +494,7 @@ export function MeetingDetailView({
   ) => {
     if (!selectedList || selectedList.length === 0) return;
     for (const item of selectedList) {
-      await handleAddParticipant(item.name, item.email);
+      await handleAddParticipant(item.name, item.email, item.company, item.role, item.isRequired);
     }
   };
 
