@@ -46,19 +46,29 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
     }
   }, []);
 
+  const loadPastParticipantsData = async () => {
+    setIsLoadingPast(true);
+    try {
+      const profiles = await fetchPastParticipants();
+      setPastParticipants(profiles);
+    } catch (err) {
+      console.warn('Error loading past participants:', err);
+    } finally {
+      setIsLoadingPast(false);
+    }
+  };
+
+  // Fetch past participants immediately on mount
+  useEffect(() => {
+    loadPastParticipantsData();
+  }, []);
+
   // Fetch past participants when modal opens
   useEffect(() => {
     if (isOpen) {
       setSelectedCompany('ALL');
       setSearchQuery('');
-      setIsLoadingPast(true);
-      fetchPastParticipants()
-        .then((profiles) => {
-          setPastParticipants(profiles);
-        })
-        .finally(() => {
-          setIsLoadingPast(false);
-        });
+      loadPastParticipantsData();
     }
   }, [isOpen]);
 
@@ -550,6 +560,15 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
                         className="text-slate-500 hover:underline"
                       >
                         {language === 'he' ? 'בטל בחירה' : 'Deselect All'}
+                      </button>
+                      <span>•</span>
+                      <button
+                        type="button"
+                        onClick={loadPastParticipantsData}
+                        className="text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1 font-mono"
+                        title={language === 'he' ? 'רענן רשימת משתתפים מהענן' : 'Refresh participants list'}
+                      >
+                        🔄 {language === 'he' ? 'רענן' : 'Refresh'}
                       </button>
                     </div>
                   </div>

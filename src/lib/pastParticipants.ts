@@ -10,7 +10,7 @@ export interface PastParticipantProfile extends Profile {
 export async function fetchPastParticipants(): Promise<PastParticipantProfile[]> {
   const profileMap = new Map<string, PastParticipantProfile>();
 
-  // Helper to add profile strictly by saved company
+  // Helper to add profile
   const addProfile = (prof: {
     id?: string;
     email?: string;
@@ -26,8 +26,6 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
 
     const existing = profileMap.get(em);
     const cleanName = prof.full_name?.replace(' (Host)', '').trim() || existing?.full_name || em.split('@')[0];
-    
-    // Strict rule: Use actual saved company, or 'Unassigned' if missing
     const rawCompany = prof.company?.trim() || existing?.company?.trim() || '';
     const cleanCompany = rawCompany && rawCompany !== 'Unassigned' ? rawCompany : 'Unassigned';
 
@@ -42,7 +40,27 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
     });
   };
 
-  // 1. Direct query to Supabase profiles table
+  // 1. Fetch from Supabase meetings with nested meeting_participants & profiles
+  try {
+    const { data: dbMeetings, error: mErr } = await (supabase.from('meetings') as any)
+      .select('id, title, slug, meeting_participants(*, profiles(*))');
+
+    if (!mErr && Array.isArray(dbMeetings)) {
+      dbMeetings.forEach((m: any) => {
+        if (Array.isArray(m.meeting_participants)) {
+          m.meeting_participants.forEach((mp: any) => {
+            if (mp.profiles) {
+              addProfile(mp.profiles);
+            }
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Notice querying Supabase meetings with nested profiles:', err);
+  }
+
+  // 2. Fetch directly from Supabase profiles table
   try {
     const { data: dbProfiles, error: pErr } = await (supabase.from('profiles') as any)
       .select('id, full_name, email, company, role, phone_number, is_organizer');
@@ -54,7 +72,7 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
     console.warn('Notice querying Supabase profiles:', err);
   }
 
-  // 2. Query Supabase meeting_participants table
+  // 3. Query Supabase meeting_participants by profile_id
   try {
     const { data: dbParticipants, error: mpErr } = await (supabase.from('meeting_participants') as any)
       .select('id, profile_id');
@@ -75,7 +93,7 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
     console.warn('Notice querying Supabase meeting_participants:', err);
   }
 
-  // 3. Scan local meetingStore for any locally saved participant profiles
+  // 4. Scan local meetingStore for any locally saved participant profiles
   try {
     const storedMeetings = getStoredMeetings();
     storedMeetings.forEach((m) => {
