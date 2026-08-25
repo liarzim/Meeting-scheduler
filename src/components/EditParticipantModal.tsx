@@ -12,6 +12,11 @@ interface EditParticipantModalProps {
   participant: ParticipantWithDetails | null;
   meetingId: string;
   meetingSlug: string;
+  meetingTitle?: string;
+  meetingDescription?: string;
+  shareableUrl?: string;
+  hostName?: string;
+  hostEmail?: string;
   onClose: () => void;
   onSuccess: (updatedParticipant: ParticipantWithDetails) => void;
 }
@@ -21,6 +26,11 @@ export function EditParticipantModal({
   participant,
   meetingId,
   meetingSlug,
+  meetingTitle = '',
+  meetingDescription = '',
+  shareableUrl = '',
+  hostName = '',
+  hostEmail = '',
   onClose,
   onSuccess,
 }: EditParticipantModalProps) {
@@ -62,6 +72,49 @@ export function EditParticipantModal({
       setCopiedEmail(true);
       setTimeout(() => setCopiedEmail(false), 2000);
     }
+  };
+
+  const handleSendEmailReminder = () => {
+    if (!email) return;
+
+    const toStr = email.trim();
+    const ccStr = hostEmail ? hostEmail.trim() : '';
+
+    const titleStr = meetingTitle || 'פגישה';
+    const descText = meetingDescription ? meetingDescription : (language === 'he' ? 'תיאום זמינות שבועית' : 'Weekly availability coordination');
+    const ownerName = hostName ? hostName.replace(' (Host)', '').trim() : (language === 'he' ? 'מארח הפגישה' : 'Meeting Owner');
+    const targetName = fullName ? fullName.trim() : (language === 'he' ? 'משתתף/ת' : 'Participant');
+
+    const subjectStr =
+      language === 'he'
+        ? `תזכורת: תיאום פגישה בנושא - ${titleStr}`
+        : `Reminder: Scheduling a meeting regarding - ${titleStr}`;
+
+    let bodyStr = '';
+    if (language === 'he') {
+      bodyStr = `שלום ${targetName},
+
+תזכורת נעימה לגבי תיאום הפגישה בנושא ${titleStr} .
+מטרת הפגישה היא ${descText}.
+לצורך התיאום, יש להיכנס לקישור הבא ולעדכן אילו מועדים זמינים לקיום הפגישה :${shareableUrl || ''}
+
+תודה מראש ,
+${ownerName}`;
+    } else {
+      bodyStr = `Hello ${targetName},
+
+Friendly reminder regarding scheduling the meeting for ${titleStr}.
+The purpose of the meeting is ${descText}.
+
+To help coordinate, please access the link below and update your available times for the meeting: ${shareableUrl || ''}
+
+Thanks in advance,
+${ownerName}`;
+    }
+
+    const mailtoUrl = `mailto:${encodeURIComponent(toStr)}?cc=${encodeURIComponent(ccStr)}&subject=${encodeURIComponent(subjectStr)}&body=${encodeURIComponent(bodyStr)}`;
+
+    window.open(mailtoUrl, '_blank');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -215,13 +268,25 @@ export function EditParticipantModal({
             )}
 
             {email && (
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs transition-colors"
-              >
-                {copiedEmail ? '✓ העתקת!' : '📋 העתק מייל'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={handleSendEmailReminder}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm transition-all"
+                  title={language === 'he' ? 'פתח אפליקציית מייל בחלון חדש לשליחת תזכורת' : 'Open mail app in new window to send reminder'}
+                >
+                  <span>📧</span>
+                  <span>{language === 'he' ? 'שלח תזכורת במייל' : 'Send Reminder'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyEmail}
+                  className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs transition-colors"
+                >
+                  {copiedEmail ? '✓ העתקת!' : '📋 העתק מייל'}
+                </button>
+              </>
             )}
           </div>
         </div>

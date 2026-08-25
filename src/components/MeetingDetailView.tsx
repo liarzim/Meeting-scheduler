@@ -685,6 +685,11 @@ export function MeetingDetailView({
         participant={participantToEdit}
         meetingId={meeting.id}
         meetingSlug={meeting.slug}
+        meetingTitle={meeting.title}
+        meetingDescription={meeting.description || ''}
+        shareableUrl={shareableUrl}
+        hostName={participants.find((p) => p.profile?.is_organizer)?.profile?.full_name || ''}
+        hostEmail={participants.find((p) => p.profile?.is_organizer)?.profile?.email || ''}
         onClose={() => setParticipantToEdit(null)}
         onSuccess={(updatedParticipant) => {
           setParticipants((prev) =>
