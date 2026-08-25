@@ -17,7 +17,7 @@ interface PublicMeetingPageProps {
 export default function PublicMeetingPage({ params }: PublicMeetingPageProps) {
   const { t, dir, language } = useLanguage();
   const resolvedParams = use(params);
-  const rawSlug = resolvedParams.slug;
+  const rawSlug = resolvedParams?.slug || '';
   const decodedSlug = decodeURIComponent(rawSlug);
 
   const [meeting, setMeeting] = useState<Meeting | null>(null);
