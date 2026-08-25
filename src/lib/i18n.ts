@@ -140,7 +140,8 @@ export const translations = {
 
     // Deleted Screen
     'deleted.title': 'Meeting No Longer Available',
-    'deleted.message': 'This meeting invitation has been cancelled or deleted by the organizer.',
+    'deleted.subtitle': 'This meeting invitation has been cancelled or is unavailable in the database.',
+    'deleted.message': 'This meeting invitation has been cancelled or is unavailable in the database.',
     'deleted.homeBtn': 'Back to Home Page',
   },
 
@@ -281,7 +282,8 @@ export const translations = {
 
     // Deleted Screen
     'deleted.title': 'פגישה זו כבר אינה זמינה',
-    'deleted.message': 'הזמנה זו לפגישה בוטלה או נמחקה על ידי המארגן.',
+    'deleted.subtitle': 'זימון פגישה זה בוטל, נמחק על ידי המארגן או שאינו קיים במסד הנתונים.',
+    'deleted.message': 'זימון פגישה זה בוטל, נמחק על ידי המארגן או שאינו קיים במסד הנתונים.',
     'deleted.homeBtn': 'חזרה לדף הבית',
   },
 } as const;

@@ -16,6 +16,7 @@ import {
   getStoredMeetings,
   deleteStoredMeeting,
   isMeetingDeleted,
+  syncLocalMeetingsToCloud,
   type TopTimeSlot,
 } from '@/lib/meetingStore';
 
@@ -40,11 +41,18 @@ export default function OrganizerDashboard() {
   const [meetingToEdit, setMeetingToEdit] = useState<Meeting | null>(null);
   const isRefreshingRef = useRef(false);
 
+  // Refresh & Selection state
+  const [selectedMeetingIds, setSelectedMeetingIds] = useState<Set<string>>(new Set());
+  const [isRefreshingAny, setIsRefreshingAny] = useState(false);
+  const [refreshingCardId, setRefreshingCardId] = useState<string | null>(null);
+
   const refreshMeetings = useCallback(async () => {
     if (isRefreshingRef.current) return;
     isRefreshingRef.current = true;
 
     try {
+      // Auto-sync any local meetings to cloud so all invitees can see them
+      await syncLocalMeetingsToCloud(supabase);
       const stored = getStoredMeetings();
       const { data, error } = await supabase
         .from('meetings')
@@ -221,6 +229,68 @@ export default function OrganizerDashboard() {
     showToast(t('detail.linkCopied'));
   };
 
+  const openMeetings = meetings.filter((m) => m.status === 'OPEN');
+  const openMeetingsCount = openMeetings.length;
+  const allOpenSelected = openMeetingsCount > 0 && openMeetings.every((m) => selectedMeetingIds.has(m.id));
+
+  const toggleSelectMeeting = (id: string) => {
+    setSelectedMeetingIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllOpen = () => {
+    if (allOpenSelected) {
+      setSelectedMeetingIds(new Set());
+    } else {
+      const next = new Set<string>();
+      openMeetings.forEach((m) => next.add(m.id));
+      setSelectedMeetingIds(next);
+    }
+  };
+
+  const handleRefreshAllOpen = async () => {
+    setIsRefreshingAny(true);
+    await refreshMeetings();
+    showToast(
+      language === 'he'
+        ? `רועננו בהצלחה ${openMeetingsCount} פגישות פתוחות`
+        : `Successfully refreshed ${openMeetingsCount} open meetings`
+    );
+    setIsRefreshingAny(false);
+  };
+
+  const handleRefreshSelected = async () => {
+    if (selectedMeetingIds.size === 0) return;
+    setIsRefreshingAny(true);
+    await refreshMeetings();
+    const count = selectedMeetingIds.size;
+    showToast(
+      language === 'he'
+        ? `רועננו בהצלחה ${count} פגישות נבחרות`
+        : `Successfully refreshed ${count} selected meetings`
+    );
+    setIsRefreshingAny(false);
+    setSelectedMeetingIds(new Set());
+  };
+
+  const handleRefreshSingle = async (m: ExtendedMeeting) => {
+    setRefreshingCardId(m.id);
+    await refreshMeetings();
+    showToast(
+      language === 'he'
+        ? `רועננה בהצלחה הפגישה: "${m.title}"`
+        : `Successfully refreshed meeting: "${m.title}"`
+    );
+    setRefreshingCardId(null);
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors" dir={dir}>
       {/* Toast Notification */}
@@ -266,6 +336,59 @@ export default function OrganizerDashboard() {
             </button>
           </div>
 
+          {/* Real-Time Refresh Control Bar for Open Meetings */}
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-xs transition-colors">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <span>⚡</span>
+                <span>{language === 'he' ? 'רענון פגישות פתוחות:' : 'Refresh Open Meetings:'}</span>
+              </span>
+
+              {/* Option 1: Refresh All Open Meetings */}
+              <button
+                onClick={handleRefreshAllOpen}
+                disabled={isRefreshingAny || openMeetingsCount === 0}
+                className="px-3.5 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 shadow-xs disabled:opacity-50"
+                title={language === 'he' ? 'רענן נתונים של כל הפגישות הציבוריות הפתוחות' : 'Refresh data for all active open meetings'}
+              >
+                <span className={isRefreshingAny ? 'animate-spin' : ''}>🔄</span>
+                <span>
+                  {language === 'he'
+                    ? `רענן את כל הפגישות הפתוחות (${openMeetingsCount})`
+                    : `Refresh All Open Meetings (${openMeetingsCount})`}
+                </span>
+              </button>
+
+              {/* Option 2: Refresh Selected Open Meetings */}
+              {selectedMeetingIds.size > 0 && (
+                <button
+                  onClick={handleRefreshSelected}
+                  disabled={isRefreshingAny}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-emerald-200 dark:border-emerald-800 shadow-xs animate-fadeIn"
+                >
+                  <span className={isRefreshingAny ? 'animate-spin' : ''}>☑️</span>
+                  <span>
+                    {language === 'he'
+                      ? `רענן ${selectedMeetingIds.size} פגישות נבחרות`
+                      : `Refresh ${selectedMeetingIds.size} Selected Meetings`}
+                  </span>
+                </button>
+              )}
+            </div>
+
+            {/* Select All Toggle */}
+            {openMeetingsCount > 0 && (
+              <button
+                onClick={toggleSelectAllOpen}
+                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-semibold underline transition-colors"
+              >
+                {allOpenSelected
+                  ? (language === 'he' ? 'בטל בחירה' : 'Deselect All')
+                  : (language === 'he' ? `בחר את כל הפתוחות (${openMeetingsCount})` : `Select All Open (${openMeetingsCount})`)}
+              </button>
+            )}
+          </div>
+
           {/* Meetings Cards Grid */}
           <section className="space-y-6">
             <div className="flex items-center justify-between">
@@ -309,20 +432,47 @@ export default function OrganizerDashboard() {
                       className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-blue-500/50 rounded-2xl p-6 transition-all shadow-sm hover:shadow-md dark:shadow-xl flex flex-col justify-between space-y-6 group relative overflow-hidden"
                     >
                       <div className="space-y-4">
-                        {/* Status, ID & Delete Icon */}
+                        {/* Status, ID & Action Icons */}
                         <div className="flex items-center justify-between">
-                          <span
-                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                              m.status === 'OPEN'
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                                : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
-                            }`}
-                          >
-                            ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {m.status === 'OPEN' && (
+                              <input
+                                type="checkbox"
+                                checked={selectedMeetingIds.has(m.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleSelectMeeting(m.id);
+                                }}
+                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                title={language === 'he' ? 'בחר פגישה זו לרענון' : 'Select this meeting for refresh'}
+                              />
+                            )}
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                m.status === 'OPEN'
+                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30'
+                              }`}
+                            >
+                              ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
+                            </span>
+                          </div>
 
                           <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
+                            {m.status === 'OPEN' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRefreshSingle(m);
+                                }}
+                                disabled={refreshingCardId === m.id}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                                title={language === 'he' ? 'רענן נתוני פגישה זו' : 'Refresh this meeting data'}
+                              >
+                                <span className={refreshingCardId === m.id ? 'animate-spin inline-block' : ''}>🔄</span>
+                              </button>
+                            )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

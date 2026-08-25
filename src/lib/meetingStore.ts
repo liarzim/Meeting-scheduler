@@ -393,3 +393,68 @@ export function computeMeetingStats(participants: ParticipantWithDetails[]): {
     topTimeSlots,
   };
 }
+
+export async function syncLocalMeetingsToCloud(supabaseClient: any) {
+  if (typeof window === 'undefined' || !supabaseClient) return;
+  try {
+    const localMeetings = getStoredMeetings();
+    if (localMeetings.length === 0) return;
+
+    for (const m of localMeetings) {
+      if (isMeetingDeleted(m.id) || isMeetingDeleted(m.slug)) continue;
+
+      const { data: existing } = await supabaseClient
+        .from('meetings')
+        .select('id')
+        .or(`id.eq.${m.id},slug.eq.${m.slug}`)
+        .maybeSingle();
+
+      if (!existing) {
+        const storedSlots =
+          getStoredMeetingData(m.id) ||
+          getStoredMeetingData(m.slug) ||
+          getStoredMeetingData(decodeURIComponent(m.slug)) ||
+          [];
+
+        const hostPart = storedSlots.find((p) => p.profile?.is_organizer);
+        const hostEmail = hostPart?.profile?.email || 'organizer@company.com';
+        const hostName = hostPart?.profile?.full_name || 'Organizer (Host)';
+
+        let profId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
+        const { data: profData } = await supabaseClient
+          .from('profiles')
+          .select('id')
+          .eq('email', hostEmail)
+          .maybeSingle();
+
+        if (profData?.id) {
+          profId = profData.id;
+        } else {
+          const { data: insertedProf } = await supabaseClient
+            .from('profiles')
+            .upsert([{ id: profId, email: hostEmail, full_name: hostName, is_organizer: true }], { onConflict: 'email' })
+            .select('id')
+            .maybeSingle();
+          if (insertedProf?.id) profId = insertedProf.id;
+        }
+
+        const dbCombinedTitle = m.description ? `${m.title}:::${m.description}` : m.title;
+
+        await supabaseClient.from('meetings').upsert(
+          [
+            {
+              id: m.id,
+              organizer_id: profId,
+              title: dbCombinedTitle,
+              slug: m.slug,
+              status: m.status || 'OPEN',
+            },
+          ],
+          { onConflict: 'id' }
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('Sync local meetings to cloud notice:', err);
+  }
+}
