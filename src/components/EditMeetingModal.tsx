@@ -95,6 +95,20 @@ export function EditMeetingModal({
       console.warn('Supabase update exception:', err);
     }
 
+    if (cleanName || cleanEmail) {
+      setGuestCookie({
+        full_name: cleanName,
+        email: cleanEmail,
+        company: '',
+        phone_number: '',
+        role: 'Organizer',
+      });
+      if (typeof window !== 'undefined') {
+        if (cleanName) localStorage.setItem('meeting_host_name', cleanName);
+        if (cleanEmail) localStorage.setItem('meeting_host_email', cleanEmail);
+      }
+    }
+
     // 3. Update local meetingStore
     saveStoredMeeting(updatedMeeting);
 
