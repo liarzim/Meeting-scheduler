@@ -275,7 +275,7 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
           .maybeSingle();
 
         if (insertedProf?.id) {
-          finalHostHostProfId: finalHostProfId = insertedProf.id;
+          finalHostProfId = insertedProf.id;
         }
       }
 
