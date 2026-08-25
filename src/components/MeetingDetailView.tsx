@@ -217,6 +217,25 @@ export function MeetingDetailView({
               }
             });
 
+            // Merge with local meetingStore data to guarantee no added participants are wiped out by polling
+            const stored =
+              getStoredMeetingData(meeting.id) ||
+              getStoredMeetingData(meeting.slug) ||
+              getStoredMeetingData(normSlug) ||
+              getStoredMeetingData(normId) ||
+              [];
+
+            if (stored && stored.length > 0) {
+              stored.forEach((sp: any) => {
+                if (!sp?.profile?.email) return;
+                const em = sp.profile.email.trim().toLowerCase();
+                if (em === 'organizer@company.com' || em === 'host@company.com') return;
+                if (!uniqueMap.has(em)) {
+                  uniqueMap.set(em, sp);
+                }
+              });
+            }
+
             const cleanList = Array.from(uniqueMap.values());
             if (cleanList.length > 0) {
               setParticipants(cleanList);
@@ -435,6 +454,11 @@ export function MeetingDetailView({
       const updated = [...prev, newParticipant];
       saveStoredMeetingData(meeting.id, updated, true);
       saveStoredMeetingData(meeting.slug, updated, true);
+      saveStoredMeetingData(normalizeKey(meeting.id), updated, true);
+      saveStoredMeetingData(normalizeKey(meeting.slug), updated, true);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('meeting_availability_updated'));
+      }
       return updated;
     });
 
