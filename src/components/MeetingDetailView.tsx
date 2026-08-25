@@ -11,6 +11,7 @@ import { CalendarSidebar } from './CalendarSidebar';
 import { InviteeCalendar } from './InviteeCalendar';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { UserGuideModal } from './UserGuideModal';
+import { EditMeetingModal } from './EditMeetingModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
@@ -31,6 +32,7 @@ export function MeetingDetailView({
   const [isEditingHostAvailability, setIsEditingHostAvailability] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -521,6 +523,15 @@ export function MeetingDetailView({
                   </div>
 
                   <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'ערוך פרטי פגישה' : 'Edit Meeting Details'}
+                  >
+                    <span>✏️</span>
+                    <span>{language === 'he' ? 'ערוך פרטים' : 'Edit Details'}</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsGuideOpen(true)}
                     className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 shadow-sm hover:scale-105 active:scale-95"
                     title={language === 'he' ? 'מדריך למשתמש' : 'User Guide'}
@@ -564,6 +575,35 @@ export function MeetingDetailView({
       <UserGuideModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      {/* Edit Meeting Details Modal */}
+      <EditMeetingModal
+        isOpen={isEditModalOpen}
+        meeting={meeting}
+        hostName={participants.find((p) => p.profile?.is_organizer)?.profile?.full_name?.replace(' (Host)', '') || ''}
+        hostEmail={participants.find((p) => p.profile?.is_organizer)?.profile?.email || ''}
+        onClose={() => setIsEditModalOpen(false)}
+        onSuccess={(updatedMeeting, newHostName, newHostEmail) => {
+          setMeeting(updatedMeeting);
+          if (newHostName || newHostEmail) {
+            setParticipants((prev) =>
+              prev.map((p) => {
+                if (p.profile?.is_organizer) {
+                  return {
+                    ...p,
+                    profile: {
+                      ...p.profile,
+                      full_name: newHostName ? `${newHostName} (Host)` : p.profile?.full_name,
+                      email: newHostEmail || p.profile?.email,
+                    },
+                  };
+                }
+                return p;
+              })
+            );
+          }
+        }}
       />
     </div>
   );

@@ -6,6 +6,7 @@ import type { Meeting } from '@/types';
 import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
 import { CreateMeetingModal } from '@/components/CreateMeetingModal';
 import { DeleteConfirmationModal } from '@/components/DeleteConfirmationModal';
+import { EditMeetingModal } from '@/components/EditMeetingModal';
 import { CalendarHeader } from '@/components/CalendarHeader';
 import { CalendarSidebar } from '@/components/CalendarSidebar';
 import { useLanguage } from '@/context/LanguageContext';
@@ -34,8 +35,9 @@ export default function OrganizerDashboard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // Delete modal state
+  // Delete & Edit modal state
   const [meetingToDelete, setMeetingToDelete] = useState<{ id: string; title: string; slug?: string } | null>(null);
+  const [meetingToEdit, setMeetingToEdit] = useState<Meeting | null>(null);
   const isRefreshingRef = useRef(false);
 
   const refreshMeetings = useCallback(async () => {
@@ -319,8 +321,18 @@ export default function OrganizerDashboard() {
                             ● {m.status === 'OPEN' ? t('dashboard.statusOpen') : t('dashboard.statusScheduled')}
                           </span>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500">ID: {m.id.substring(0, 8)}</span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMeetingToEdit(m);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors"
+                              title={language === 'he' ? 'ערוך פרטי פגישה' : 'Edit meeting details'}
+                            >
+                              ✏️
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -442,6 +454,27 @@ export default function OrganizerDashboard() {
         meetingTitle={meetingToDelete?.title || ''}
         onConfirm={confirmDeleteMeeting}
         onCancel={() => setMeetingToDelete(null)}
+      />
+
+      {/* Edit Meeting Details Modal */}
+      <EditMeetingModal
+        isOpen={!!meetingToEdit}
+        meeting={meetingToEdit}
+        onClose={() => setMeetingToEdit(null)}
+        onSuccess={(updatedMeeting) => {
+          setMeetings((prev) =>
+            prev.map((m) => {
+              if (m.id === updatedMeeting.id || m.slug === updatedMeeting.slug) {
+                return {
+                  ...m,
+                  ...updatedMeeting,
+                };
+              }
+              return m;
+            })
+          );
+          showToast(language === 'he' ? 'פרטי הפגישה עודכנו בהצלחה' : 'Meeting details updated successfully');
+        }}
       />
     </div>
   );
