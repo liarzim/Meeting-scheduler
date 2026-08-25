@@ -12,6 +12,7 @@ import { InviteeCalendar } from './InviteeCalendar';
 import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { UserGuideModal } from './UserGuideModal';
 import { EditMeetingModal } from './EditMeetingModal';
+import { SendEmailInviteModal } from './SendEmailInviteModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import type { GuestInfo } from '@/lib/cookies';
@@ -33,6 +34,7 @@ export function MeetingDetailView({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -471,6 +473,7 @@ export function MeetingDetailView({
           onToggleRequired={toggleRequired}
           onRemoveParticipant={handleRemoveParticipant}
           onAddParticipant={handleAddParticipant}
+          onOpenEmailModal={() => setIsEmailModalOpen(true)}
         />
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
@@ -570,6 +573,15 @@ export function MeetingDetailView({
                   </div>
 
                   <button
+                    onClick={() => setIsEmailModalOpen(true)}
+                    className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-purple-200 dark:border-purple-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'שלח זימונים במייל' : 'Send Email Invitations'}
+                  >
+                    <span>📧</span>
+                    <span>{language === 'he' ? 'שלח זימון במייל' : 'Send Email Invites'}</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsEditModalOpen(true)}
                     className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800 shadow-sm hover:scale-105 active:scale-95"
                     title={language === 'he' ? 'ערוך פרטי פגישה' : 'Edit Meeting Details'}
@@ -651,6 +663,17 @@ export function MeetingDetailView({
             );
           }
         }}
+      />
+
+      {/* Send Email Invitations Modal */}
+      <SendEmailInviteModal
+        isOpen={isEmailModalOpen}
+        meeting={meeting}
+        shareableUrl={shareableUrl}
+        hostName={participants.find((p) => p.profile?.is_organizer)?.profile?.full_name || ''}
+        hostEmail={participants.find((p) => p.profile?.is_organizer)?.profile?.email || ''}
+        existingInvitedEmails={participants.filter((p) => !p.profile?.is_organizer && p.profile?.email).map((p) => p.profile?.email as string)}
+        onClose={() => setIsEmailModalOpen(false)}
       />
     </div>
   );

@@ -13,6 +13,7 @@ interface CalendarSidebarProps {
   onToggleRequired?: (id: string) => void;
   onRemoveParticipant?: (id: string) => void;
   onAddParticipant?: (name: string, email: string) => void;
+  onOpenEmailModal?: () => void;
 }
 
 export function CalendarSidebar({
@@ -23,6 +24,7 @@ export function CalendarSidebar({
   onToggleRequired,
   onRemoveParticipant,
   onAddParticipant,
+  onOpenEmailModal,
 }: CalendarSidebarProps) {
   const { t, dir, language } = useLanguage();
   const [newName, setNewName] = useState('');
@@ -162,6 +164,16 @@ export function CalendarSidebar({
                 {t('detail.addPartBtn')}
               </button>
             </form>
+          )}
+
+          {onOpenEmailModal && (
+            <button
+              onClick={onOpenEmailModal}
+              className="w-full py-2.5 px-3 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all flex items-center justify-center gap-2 border border-purple-200 dark:border-purple-800 shadow-xs"
+            >
+              <span>📧</span>
+              <span>{language === 'he' ? 'שלח זימון במייל' : 'Send Email Invites'}</span>
+            </button>
           )}
         </div>
       )}
