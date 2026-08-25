@@ -7,31 +7,10 @@ export interface PastParticipantProfile extends Profile {
   role?: string | null;
 }
 
-export function inferCompanyFromEmail(email: string, explicitCompany?: string | null): string {
-  if (explicitCompany && explicitCompany.trim() && explicitCompany.trim() !== 'Unassigned') {
-    return explicitCompany.trim();
-  }
-  if (!email || !email.includes('@')) return 'Unassigned';
-
-  const domain = email.split('@')[1].toLowerCase();
-  if (domain === 'moag.gov.il') return 'משרד החקלאות';
-  if (domain === 'mof.gov.il') return 'משרד האוצר';
-  if (domain === 'sigma.gov.il') return 'סיגמה';
-  if (domain === 'sap.com') return 'SAP';
-  if (domain === 'trustco.co.il') return 'Trustco';
-  if (domain === 'gmail.com' || domain === 'outlook.com' || domain === 'yahoo.com' || domain === 'hotmail.com') {
-    return 'פרטי / General';
-  }
-
-  // Capitalize domain name as fallback (e.g. company.com -> Company)
-  const namePart = domain.split('.')[0];
-  return namePart.charAt(0).toUpperCase() + namePart.slice(1);
-}
-
 export async function fetchPastParticipants(): Promise<PastParticipantProfile[]> {
   const profileMap = new Map<string, PastParticipantProfile>();
 
-  // Helper to add profile
+  // Helper to add profile strictly by saved company
   const addProfile = (prof: {
     id?: string;
     email?: string;
@@ -47,7 +26,10 @@ export async function fetchPastParticipants(): Promise<PastParticipantProfile[]>
 
     const existing = profileMap.get(em);
     const cleanName = prof.full_name?.replace(' (Host)', '').trim() || existing?.full_name || em.split('@')[0];
-    const cleanCompany = inferCompanyFromEmail(em, prof.company || existing?.company);
+    
+    // Strict rule: Use actual saved company, or 'Unassigned' if missing
+    const rawCompany = prof.company?.trim() || existing?.company?.trim() || '';
+    const cleanCompany = rawCompany && rawCompany !== 'Unassigned' ? rawCompany : 'Unassigned';
 
     profileMap.set(em, {
       id: prof.id || existing?.id || `prof-${Date.now()}`,

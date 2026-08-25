@@ -595,9 +595,13 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
                                 <span className="font-bold text-xs text-slate-900 dark:text-white truncate">
                                   {participant.full_name}
                                 </span>
-                                {participant.company && (
+                                {participant.company && participant.company !== 'Unassigned' ? (
                                   <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 shrink-0">
                                     🏢 {participant.company}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-[10px] font-bold text-amber-700 dark:text-amber-300 shrink-0" title="Click participant card to edit company details">
+                                    ⚠️ {language === 'he' ? 'ללא שיוך חברה' : 'Unassigned'}
                                   </span>
                                 )}
                               </div>
