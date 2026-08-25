@@ -47,8 +47,10 @@ export function MeetingDetailView({
   const isLoadingRef = useRef(false);
 
   useEffect(() => {
-    setShareableUrl(`${window.location.origin}/${meeting.slug}`);
-  }, [meeting.slug]);
+    if (typeof window !== 'undefined' && meeting?.slug) {
+      setShareableUrl(`${window.location.origin}/${meeting.slug}`);
+    }
+  }, [meeting?.slug]);
 
   useEffect(() => {
     const cookieHost = getGuestCookie();
