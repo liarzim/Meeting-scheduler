@@ -98,12 +98,11 @@ ${cleanHostName}`;
       return;
     }
 
-    const toStr = emails.join(',');
+    const toStr = emails.join(';');
     const ccStr = hostEmail ? hostEmail.trim() : '';
 
     const mailtoUrl = `mailto:${encodeURIComponent(toStr)}?cc=${encodeURIComponent(ccStr)}&subject=${encodeURIComponent(subjectStr)}&body=${encodeURIComponent(bodyStr)}`;
 
-    // Open default desktop/mobile mail app (Outlook, Apple Mail, Gmail handler, etc.)
     window.location.href = mailtoUrl;
     onClose();
   };
@@ -115,94 +114,95 @@ ${cleanHostName}`;
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-xl w-full shadow-2xl space-y-6 text-slate-900 dark:text-slate-100 transition-colors max-h-[90vh] overflow-y-auto transform transition-all animate-scaleUp"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-6 relative overflow-hidden transition-all"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Modal Header */}
+        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
-          <div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-bold mb-1">
-              <span>📧</span>
-              <span>{language === 'he' ? 'שליחת זימונים במייל' : 'Send Email Invitations'}</span>
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xl shadow-inner">
+              ✉️
+            </span>
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900 dark:text-slate-100">
+                {language === 'he' ? 'שליחת זימון במייל למשתתפים' : 'Send Invitation via Email'}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {language === 'he'
+                  ? 'פתח את תוכנת הדוא"ל שלך (Outlook / Gmail) עם הזימון המוכן'
+                  : 'Open your default email client (Outlook / Gmail) with prefilled invite'}
+              </p>
             </div>
-            <h2 className="text-xl md:text-2xl font-extrabold text-slate-900 dark:text-white">
-              {language === 'he' ? 'זימון משתתפים במייל' : 'Invite Participants via Email'}
-            </h2>
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center justify-center text-sm font-bold transition-colors shrink-0"
+            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center transition-colors text-sm font-bold"
           >
             ✕
           </button>
         </div>
 
         {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-400 text-xs font-semibold">
+          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-semibold">
             ⚠️ {error}
           </div>
         )}
 
-        {/* Step 1: Add Participant Emails */}
-        <div className="space-y-3">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-            {language === 'he' ? '1. הוסף כתובות דוא"ל של המשתתפים (TO):' : '1. Add Participant Emails (TO):'}
+        {/* Input for Emails */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+            {language === 'he' ? 'כתובות דוא"ל נמענים (מופרדות בנקודה-פסיק ; או פסיק):' : 'Recipient Emails (separated by semicolon ; or comma):'}
           </label>
-
-          <form onSubmit={handleAddEmail} className="flex items-center gap-2">
+          <div className="flex gap-2">
             <input
               type="email"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              placeholder={language === 'he' ? 'לדוגמה: colleague@company.com' : 'e.g. colleague@company.com'}
-              className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs"
+              value={inputEmail}
+              onChange={(e) => setInputEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ';' || e.key === ',') {
+                  e.preventDefault();
+                  handleAddEmail();
+                }
+              }}
+              placeholder="example@company.com"
+              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <button
-              type="submit"
-              className="px-4 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700 transition-colors shrink-0"
+              onClick={handleAddEmail}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-colors"
             >
-              {language === 'he' ? '+ הוסף' : '+ Add'}
+              + {language === 'he' ? 'הוסף' : 'Add'}
             </button>
-          </form>
+          </div>
 
-          {/* List of Added Emails */}
-          {emails.length > 0 ? (
-            <div className="flex flex-wrap gap-2 pt-1 max-h-32 overflow-y-auto">
+          {/* Email Pills */}
+          {emails.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-2 max-h-28 overflow-y-auto">
               {emails.map((em) => (
                 <span
                   key={em}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs font-mono font-medium shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-medium"
                 >
-                  <span>{em}</span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveEmail(em)}
-                    className="text-blue-400 hover:text-rose-600 dark:hover:text-rose-400 font-bold ml-1"
-                    title="Remove"
-                  >
+                  {em}
+                  <button onClick={() => handleRemoveEmail(em)} className="hover:text-rose-500 font-bold ml-1">
                     ✕
                   </button>
                 </span>
               ))}
             </div>
-          ) : (
-            <p className="text-xs text-slate-400 dark:text-slate-500 italic">
-              {language === 'he' ? 'טרם הוזנו כתובות מייל. הוסף כתובת מייל למעלה.' : 'No participant emails added yet. Add an email address above.'}
-            </p>
           )}
         </div>
 
-        {/* Step 2: Email Rules Preview */}
-        <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-            {language === 'he' ? '2. תצוגה מקדימה של הודעת המייל שתשלח:' : '2. Preview of the Email Message:'}
+        {/* Live Preview */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+            {language === 'he' ? 'תצוגה מקדימה של הזימון:' : 'Email Preview:'}
           </label>
-
           <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-xs space-y-2.5 font-sans leading-relaxed">
             <div className="flex items-center justify-between text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
               <span>
                 <strong className="text-slate-800 dark:text-slate-200">TO:</strong>{' '}
-                <span className="font-mono text-blue-600 dark:text-blue-400">{emails.length > 0 ? emails.join(', ') : '(יש להוסיף מיילים)'}</span>
+                <span className="font-mono text-blue-600 dark:text-blue-400">{emails.length > 0 ? emails.join('; ') : '(יש להוסיף מיילים)'}</span>
               </span>
             </div>
 

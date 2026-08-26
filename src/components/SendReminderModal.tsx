@@ -154,7 +154,7 @@ ${cleanHostName}`;
       return;
     }
 
-    const bccList = selectedList.join(',');
+    const bccList = selectedList.join(';');
     const mailtoUrl = `mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(customSubject)}&body=${encodeURIComponent(customBody)}`;
     window.open(mailtoUrl, '_blank');
   };
@@ -165,7 +165,7 @@ ${cleanHostName}`;
       return;
     }
 
-    const textToCopy = `נמענים: ${selectedList.join(', ')}\n\nנושא: ${customSubject}\n\n${customBody}`;
+    const textToCopy = `נמענים: ${selectedList.join('; ')}\n\nנושא: ${customSubject}\n\n${customBody}`;
     navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
