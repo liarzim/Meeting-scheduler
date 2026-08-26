@@ -16,6 +16,7 @@ import { SendEmailInviteModal } from './SendEmailInviteModal';
 import { SendReminderModal } from './SendReminderModal';
 import { EditParticipantModal } from './EditParticipantModal';
 import { AddPastParticipantsModal } from './AddPastParticipantsModal';
+import { SearchParticipantModal } from './SearchParticipantModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   getStoredMeetingData,
@@ -51,6 +52,7 @@ export function MeetingDetailView({
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
   const [reminderInitialEmail, setReminderInitialEmail] = useState<string | null>(null);
   const [isPastParticipantsModalOpen, setIsPastParticipantsModalOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
   const [hostName, setHostName] = useState('');
   const [hostEmail, setHostEmail] = useState('');
@@ -848,6 +850,15 @@ export function MeetingDetailView({
                   </div>
 
                   <button
+                    onClick={() => setIsSearchModalOpen(true)}
+                    className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-blue-200 dark:border-blue-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'חפש משתתף לפי שם, מייל או חברה' : 'Search Participant by Name, Email, or Company'}
+                  >
+                    <span>🔍</span>
+                    <span>{language === 'he' ? 'חפש משתתף' : 'Search Participant'}</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsEmailModalOpen(true)}
                     className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-purple-200 dark:border-purple-800 shadow-sm hover:scale-105 active:scale-95"
                     title={language === 'he' ? 'שלח זימונים במייל' : 'Send Email Invitations'}
@@ -1014,6 +1025,14 @@ export function MeetingDetailView({
         hostEmail={hostEmail}
         initialSelectedEmail={reminderInitialEmail}
         onClose={() => setIsReminderModalOpen(false)}
+      />
+
+      {/* Search Participant Modal */}
+      <SearchParticipantModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        participants={participants}
+        onSelectParticipant={(p) => setParticipantToEdit(p)}
       />
     </div>
   );

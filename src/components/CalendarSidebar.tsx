@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { MiniMonthCalendar } from './MiniMonthCalendar';
 import type { ParticipantWithDetails } from './MeetingHeatmap';
@@ -37,6 +37,19 @@ export function CalendarSidebar({
   const { t, dir, language } = useLanguage();
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredParticipants = useMemo(() => {
+    if (!participants) return [];
+    if (!searchQuery.trim()) return participants;
+    const q = searchQuery.trim().toLowerCase();
+    return participants.filter((p) => {
+      const name = (p.profile?.full_name || '').toLowerCase();
+      const email = (p.profile?.email || '').toLowerCase();
+      const company = (p.profile?.company || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || company.includes(q);
+    });
+  }, [participants, searchQuery]);
 
   const handleAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,7 +84,7 @@ export function CalendarSidebar({
 
       {/* Participants List Panel */}
       {participants && (
-        <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-800/80">
+        <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800/80">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">{t('detail.participantsTitle')}</h3>
@@ -84,9 +97,49 @@ export function CalendarSidebar({
             </span>
           </div>
 
+          {/* Search Box */}
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={
+                language === 'he'
+                  ? '🔍 חפש לפי שם, מייל או חברה...'
+                  : '🔍 Search by name, email, or company...'
+              }
+              className="w-full px-3 py-1.5 rounded-xl text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute left-2.5 top-1.5 text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Search Results Count Badge */}
+          {searchQuery.trim() !== '' && (
+            <div className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 p-1.5 rounded-lg border border-blue-200 dark:border-blue-800/60 flex items-center justify-between">
+              <span>
+                {language === 'he'
+                  ? `נמצאו ${filteredParticipants.length} מתוך ${participants.length}`
+                  : `Found ${filteredParticipants.length} of ${participants.length}`}
+              </span>
+              <span className="text-[9px] text-slate-400">({language === 'he' ? 'לחץ לעריכה' : 'Click to edit'})</span>
+            </div>
+          )}
+
           {/* Participant Cards */}
           <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-            {participants.filter(Boolean).map((p) => {
+            {filteredParticipants.length === 0 ? (
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950 text-center text-xs text-slate-400 border border-slate-200 dark:border-slate-800">
+                {language === 'he' ? 'לא נמצאו משתתפים מתאימים' : 'No matching participants found'}
+              </div>
+            ) : (
+              filteredParticipants.filter(Boolean).map((p) => {
               const slotCount = p?.availability?.length || 0;
               return (
                 <div
@@ -197,7 +250,7 @@ export function CalendarSidebar({
                   </div>
                 </div>
               );
-            })}
+            }))}
           </div>
 
           {/* Add Participant Form */}
