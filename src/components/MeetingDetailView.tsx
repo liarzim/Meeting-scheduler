@@ -229,7 +229,14 @@ export function MeetingDetailView({
               stored.forEach((sp: any) => {
                 if (!sp?.profile?.email) return;
                 const em = sp.profile.email.trim().toLowerCase();
-                if (em === 'organizer@company.com' || em === 'host@company.com') return;
+                if (
+                  em === 'organizer@company.com' ||
+                  em === 'host@company.com' ||
+                  em.includes('test-sync@') ||
+                  em.includes('organizer-test@')
+                ) {
+                  return;
+                }
                 if (!uniqueMap.has(em)) {
                   uniqueMap.set(em, sp);
                 }
@@ -248,7 +255,7 @@ export function MeetingDetailView({
                 if (orgProf && orgProf.email) {
                   const orgKey = orgProf.email.trim().toLowerCase();
                   const hostPart: ParticipantWithDetails = {
-                    id: `host-${dbData.id}`,
+                    id: generateUUID(),
                     meeting_id: dbData.id,
                     profile_id: orgProf.id,
                     is_required: true,
@@ -263,7 +270,7 @@ export function MeetingDetailView({
 
                   // Persist missing organizer participant row in Supabase DB
                   (supabase.from('meeting_participants') as any)
-                    .upsert([{ id: `host-${dbData.id}`, meeting_id: dbData.id, profile_id: orgProf.id, is_required: true }], { onConflict: 'id' })
+                    .upsert([{ id: hostPart.id, meeting_id: dbData.id, profile_id: orgProf.id, is_required: true }], { onConflict: 'id' })
                     .then(() => {});
                 }
               } catch (orgErr) {
@@ -271,12 +278,34 @@ export function MeetingDetailView({
               }
             }
 
-            // Sort organizer to the very top
-            const cleanList = Array.from(uniqueMap.values()).sort((a, b) => {
-              if (a.profile?.is_organizer) return -1;
-              if (b.profile?.is_organizer) return 1;
-              return 0;
-            });
+            // Sort organizer to the very top, filter test accounts and ensure single host badge
+            let organizerFound = false;
+            const cleanList = Array.from(uniqueMap.values())
+              .filter((p) => {
+                const em = (p.profile?.email || '').trim().toLowerCase();
+                return em && !em.includes('test-sync@') && !em.includes('organizer-test@');
+              })
+              .map((p) => {
+                if (p.profile?.is_organizer) {
+                  if (organizerFound) {
+                    return {
+                      ...p,
+                      profile: {
+                        ...p.profile,
+                        is_organizer: false,
+                        full_name: p.profile.full_name?.replace(' (Host)', '').trim(),
+                      },
+                    };
+                  }
+                  organizerFound = true;
+                }
+                return p;
+              })
+              .sort((a, b) => {
+                if (a.profile?.is_organizer) return -1;
+                if (b.profile?.is_organizer) return 1;
+                return 0;
+              });
 
             if (cleanList.length > 0) {
               setParticipants(cleanList);

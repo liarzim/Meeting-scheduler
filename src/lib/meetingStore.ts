@@ -463,10 +463,32 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
 
       // Sync stored local participants for this meeting into Supabase DB
       if (storedSlots && storedSlots.length > 0) {
+        // Fetch existing participant emails for this meeting to prevent duplicate hosts
+        const { data: dbMeetingParts } = await supabaseClient
+          .from('meeting_participants')
+          .select('*, profiles(*)')
+          .eq('meeting_id', realMeetingId);
+
+        const dbHasOrganizer = (dbMeetingParts || []).some((mp: any) => mp.profiles?.is_organizer || mp.profile_id === existing?.organizer_id);
+
         for (const sp of storedSlots) {
           if (!sp?.profile?.email) continue;
           const em = sp.profile.email.trim().toLowerCase();
-          if (em === 'organizer@company.com' || em === 'host@company.com') continue;
+          
+          // Skip test/placeholder accounts
+          if (
+            em === 'organizer@company.com' ||
+            em === 'host@company.com' ||
+            em.includes('test-sync@') ||
+            em.includes('organizer-test@')
+          ) {
+            continue;
+          }
+
+          // If this stored participant is an organizer, but DB already has an organizer, skip duplicate host insert
+          if (sp.profile?.is_organizer && dbHasOrganizer) {
+            continue;
+          }
 
           let profId = sp.profile_id || sp.profile.id;
           if (!profId || profId.startsWith('prof-') || profId.length !== 36) {
