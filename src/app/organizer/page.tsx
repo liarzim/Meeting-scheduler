@@ -88,16 +88,39 @@ export default function OrganizerDashboard() {
               }));
             }
 
-            // Fallback or merge with local store
-            if (participants.length === 0) {
-              participants =
-                getStoredMeetingData(m.id) ||
-                getStoredMeetingData(m.slug) ||
-                getStoredMeetingData(decodeURIComponent(m.slug)) ||
-                [];
+            // Merge DB participants with local meetingStore data
+            const stored =
+              getStoredMeetingData(m.id) ||
+              getStoredMeetingData(m.slug) ||
+              getStoredMeetingData(decodeURIComponent(m.slug)) ||
+              [];
+
+            const uniqueMap = new Map<string, ParticipantWithDetails>();
+            participants.forEach((p) => {
+              const em = (p.profile?.email || '').trim().toLowerCase();
+              const key = em || p.id;
+              if (key) uniqueMap.set(key, p);
+            });
+
+            if (stored && stored.length > 0) {
+              stored.forEach((sp: any) => {
+                if (!sp?.profile?.email) return;
+                const em = sp.profile.email.trim().toLowerCase();
+                if (em === 'organizer@company.com' || em === 'host@company.com') return;
+                if (!uniqueMap.has(em)) {
+                  uniqueMap.set(em, sp);
+                } else {
+                  const prev = uniqueMap.get(em)!;
+                  const slotMap = new Map();
+                  (prev.availability || []).forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
+                  (sp.availability || []).forEach((s: any) => slotMap.set(s.slot_key || s.start_time, s));
+                  uniqueMap.set(em, { ...prev, availability: Array.from(slotMap.values()) });
+                }
+              });
             }
 
-            map.set(m.id, { ...m, ...computeMeetingStats(participants) });
+            const finalMergedList = Array.from(uniqueMap.values());
+            map.set(m.id, { ...m, ...computeMeetingStats(finalMergedList) });
           });
       }
 

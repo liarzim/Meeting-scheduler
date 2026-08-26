@@ -1,5 +1,6 @@
 import type { AvailabilitySlot, Meeting } from '@/types';
 import type { ParticipantWithDetails } from '@/components/MeetingHeatmap';
+import { generateUUID } from './uuid';
 
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
@@ -409,18 +410,20 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
         .or(`id.eq.${m.id},slug.eq.${m.slug}`)
         .maybeSingle();
 
-      if (!existing) {
-        const storedSlots =
-          getStoredMeetingData(m.id) ||
-          getStoredMeetingData(m.slug) ||
-          getStoredMeetingData(decodeURIComponent(m.slug)) ||
-          [];
+      const storedSlots =
+        getStoredMeetingData(m.id) ||
+        getStoredMeetingData(m.slug) ||
+        getStoredMeetingData(decodeURIComponent(m.slug)) ||
+        [];
 
+      let realMeetingId = m.id;
+
+      if (!existing) {
         const hostPart = storedSlots.find((p) => p.profile?.is_organizer);
         const hostEmail = hostPart?.profile?.email || 'organizer@company.com';
         const hostName = hostPart?.profile?.full_name || 'Organizer (Host)';
 
-        let profId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
+        let profId = generateUUID();
         const { data: profData } = await supabaseClient
           .from('profiles')
           .select('id')
@@ -440,7 +443,7 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
 
         const dbCombinedTitle = m.description ? `${m.title}:::${m.description}` : m.title;
 
-        await supabaseClient.from('meetings').upsert(
+        const { data: insertedM } = await supabaseClient.from('meetings').upsert(
           [
             {
               id: m.id,
@@ -451,7 +454,64 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
             },
           ],
           { onConflict: 'id' }
-        );
+        ).select('id').maybeSingle();
+
+        if (insertedM?.id) realMeetingId = insertedM.id;
+      } else {
+        realMeetingId = existing.id;
+      }
+
+      // Sync stored local participants for this meeting into Supabase DB
+      if (storedSlots && storedSlots.length > 0) {
+        for (const sp of storedSlots) {
+          if (!sp?.profile?.email) continue;
+          const em = sp.profile.email.trim().toLowerCase();
+          if (em === 'organizer@company.com' || em === 'host@company.com') continue;
+
+          let profId = sp.profile_id || sp.profile.id;
+          if (!profId || profId.startsWith('prof-') || profId.length !== 36) {
+            profId = generateUUID();
+          }
+
+          const { data: profRes } = await supabaseClient
+            .from('profiles')
+            .upsert(
+              [
+                {
+                  id: profId,
+                  email: em,
+                  full_name: sp.profile.full_name || em.split('@')[0],
+                  company: sp.profile.company || null,
+                  phone_number: sp.profile.phone_number || null,
+                  is_organizer: !!sp.profile.is_organizer,
+                },
+              ],
+              { onConflict: 'email' }
+            )
+            .select('id')
+            .maybeSingle();
+
+          const finalProfId = profRes?.id || profId;
+
+          let partId = sp.id;
+          if (!partId || partId.startsWith('part-') || partId.length !== 36) {
+            partId = generateUUID();
+          }
+
+          await supabaseClient
+            .from('meeting_participants')
+            .upsert(
+              [
+                {
+                  id: partId,
+                  meeting_id: realMeetingId,
+                  profile_id: finalProfId,
+                  is_required: sp.is_required !== false,
+                },
+              ],
+              { onConflict: 'id' }
+            );
+        }
       }
     }
   } catch (err) {
