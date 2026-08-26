@@ -602,29 +602,48 @@ export function MeetingDetailView({
     );
     if (!target || target.profile?.is_organizer) return;
 
-    const targetEmail = target.profile?.email?.toLowerCase();
+    const targetEmail = target.profile?.email?.trim().toLowerCase();
     const targetId = target.id;
 
-    // 1. Optimistic UI update
+    // 1. Optimistic UI update and purge across all local storage keys
     setParticipants((prev) => {
       const updated = prev.filter(
-        (p) => p.id !== targetId && (!targetEmail || (p.profile?.email || '').toLowerCase() !== targetEmail)
+        (p) => p.id !== targetId && (!targetEmail || (p.profile?.email || '').trim().toLowerCase() !== targetEmail)
       );
       saveStoredMeetingData(meeting.id, updated, true);
-      saveStoredMeetingData(meeting.slug, updated, true);
+      if (meeting.slug) saveStoredMeetingData(meeting.slug, updated, true);
+      const normSlug = normalizeKey(meeting.slug || '');
+      if (normSlug) saveStoredMeetingData(normSlug, updated, true);
+      const normId = normalizeKey(meeting.id || '');
+      if (normId) saveStoredMeetingData(normId, updated, true);
       return updated;
     });
 
     // 2. Persist delete to Supabase DB
     try {
-      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-      if (isUUID(targetId)) {
-        await (supabase.from('meeting_participants') as any).delete().eq('id', targetId);
-      } else if (targetEmail) {
-        const { data: prof } = await (supabase.from('profiles') as any).select('id').eq('email', targetEmail).maybeSingle();
-        if (prof?.id) {
-          await (supabase.from('meeting_participants') as any).delete().eq('profile_id', prof.id);
-        }
+      const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
+      let profId = target.profile_id || target.profile?.id;
+      if (!profId && targetEmail) {
+        const { data: prof } = await (supabase.from('profiles') as any)
+          .select('id')
+          .eq('email', targetEmail)
+          .maybeSingle();
+        if (prof?.id) profId = prof.id;
+      }
+
+      // Delete from meeting_participants by profile_id
+      if (profId) {
+        await (supabase.from('meeting_participants') as any)
+          .delete()
+          .eq('profile_id', profId);
+      }
+
+      // Delete from meeting_participants by participant ID
+      if (targetId && isUUID(targetId)) {
+        await (supabase.from('meeting_participants') as any)
+          .delete()
+          .eq('id', targetId);
       }
     } catch (err) {
       console.warn('Supabase DB remove participant notice:', err);
