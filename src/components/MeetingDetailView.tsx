@@ -13,11 +13,13 @@ import { DeleteConfirmationModal } from './DeleteConfirmationModal';
 import { UserGuideModal } from './UserGuideModal';
 import { EditMeetingModal } from './EditMeetingModal';
 import { SendEmailInviteModal } from './SendEmailInviteModal';
+import { SendReminderModal } from './SendReminderModal';
 import { EditParticipantModal } from './EditParticipantModal';
 import { AddPastParticipantsModal } from './AddPastParticipantsModal';
 import { useLanguage } from '@/context/LanguageContext';
 import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
 import { getGuestCookie, type GuestInfo } from '@/lib/cookies';
+import { generateUUID } from '@/lib/uuid';
 
 interface MeetingDetailViewProps {
   initialMeeting: Meeting;
@@ -37,6 +39,8 @@ export function MeetingDetailView({
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderInitialEmail, setReminderInitialEmail] = useState<string | null>(null);
   const [isPastParticipantsModalOpen, setIsPastParticipantsModalOpen] = useState(false);
   const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
   const [hostName, setHostName] = useState('');
@@ -664,6 +668,10 @@ export function MeetingDetailView({
           onOpenEmailModal={() => setIsEmailModalOpen(true)}
           onOpenPastParticipantsModal={() => setIsPastParticipantsModalOpen(true)}
           onEditParticipant={(p) => setParticipantToEdit(p)}
+          onSendReminder={(email) => {
+            setReminderInitialEmail(email);
+            setIsReminderModalOpen(true);
+          }}
         />
 
         <main className="flex-1 p-6 md:p-10 overflow-y-auto space-y-8">
@@ -769,6 +777,18 @@ export function MeetingDetailView({
                   >
                     <span>📧</span>
                     <span>{language === 'he' ? 'שלח זימון במייל' : 'Send Email Invites'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setReminderInitialEmail(null);
+                      setIsReminderModalOpen(true);
+                    }}
+                    className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'שלח תזכורת למשתתפים' : 'Send Reminder to Participants'}
+                  >
+                    <span>⏰</span>
+                    <span>{language === 'he' ? 'שלח תזכורת' : 'Send Reminder'}</span>
                   </button>
 
                   <button
@@ -901,6 +921,18 @@ export function MeetingDetailView({
         existingParticipants={participants}
         onClose={() => setIsPastParticipantsModalOpen(false)}
         onAddParticipants={handleBatchAddParticipants}
+      />
+
+      {/* Send Reminder Modal */}
+      <SendReminderModal
+        isOpen={isReminderModalOpen}
+        meeting={meeting}
+        participants={participants}
+        shareableUrl={shareableUrl}
+        hostName={hostName}
+        hostEmail={hostEmail}
+        initialSelectedEmail={reminderInitialEmail}
+        onClose={() => setIsReminderModalOpen(false)}
       />
     </div>
   );

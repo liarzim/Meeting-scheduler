@@ -17,6 +17,7 @@ interface CalendarSidebarProps {
   onOpenEmailModal?: () => void;
   onOpenPastParticipantsModal?: () => void;
   onEditParticipant?: (participant: ParticipantWithDetails) => void;
+  onSendReminder?: (email: string) => void;
 }
 
 export function CalendarSidebar({
@@ -31,6 +32,7 @@ export function CalendarSidebar({
   onOpenEmailModal,
   onOpenPastParticipantsModal,
   onEditParticipant,
+  onSendReminder,
 }: CalendarSidebarProps) {
   const { t, dir, language } = useLanguage();
   const [newName, setNewName] = useState('');
@@ -145,6 +147,17 @@ export function CalendarSidebar({
                     >
                       📅
                     </button>
+
+                    {onSendReminder && p.profile?.email && !p.profile?.is_organizer && (
+                      <button
+                        type="button"
+                        onClick={() => onSendReminder(p.profile!.email!)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors text-xs"
+                        title={language === 'he' ? 'שלח תזכורת למשתתף זה' : 'Send reminder to this participant'}
+                      >
+                        ⏰
+                      </button>
+                    )}
 
                     {onEditParticipant && (
                       <button
