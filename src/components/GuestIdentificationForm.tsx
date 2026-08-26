@@ -11,15 +11,17 @@ import { UserGuideModal } from './UserGuideModal';
 
 interface GuestIdentificationFormProps {
   meetingId: string;
-  meetingTitle: string;
+  meetingTitle?: string;
   meetingDescription?: string;
-  onComplete: (participantId: string, profileId: string, guestInfo: GuestInfo) => void;
+  initialInfo?: GuestInfo;
+  onComplete: (data: { participantId: string; profileId: string; guestInfo: GuestInfo }) => void;
 }
 
 export function GuestIdentificationForm({
   meetingId,
   meetingTitle,
   meetingDescription,
+  initialInfo,
   onComplete,
 }: GuestIdentificationFormProps) {
   const { t, dir, language } = useLanguage();
@@ -34,6 +36,9 @@ export function GuestIdentificationForm({
 
   // Clean title for display
   const cleanTitle = useMemo(() => {
+    if (!meetingTitle || meetingTitle === 'undefined' || !meetingTitle.trim()) {
+      return '';
+    }
     try {
       const decoded = decodeURIComponent(meetingTitle);
       return decoded.replace(/-[a-z0-9]{5}$/i, '').replace(/-/g, ' ');
@@ -165,7 +170,7 @@ export function GuestIdentificationForm({
       // Register in local store with resolved participantId
       updateParticipantSlots(meetingId, participantId, guestInfo, []);
       setIsSubmitting(false);
-      onComplete(participantId, profileId, guestInfo);
+      onComplete({ participantId, profileId, guestInfo });
     }
   };
 
@@ -191,7 +196,7 @@ export function GuestIdentificationForm({
 
       <div className="text-center space-y-2">
         <h2 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white">
-          {t('invitee.joinTitle')} &quot;{cleanTitle}&quot;
+          {t('invitee.joinTitle')}{cleanTitle ? ` "${cleanTitle}"` : ''}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {t('invitee.regSubtitle')}

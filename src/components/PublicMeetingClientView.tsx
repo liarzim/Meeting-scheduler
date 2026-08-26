@@ -206,6 +206,8 @@ export function PublicMeetingClientView({ slug }: PublicMeetingClientViewProps) 
         {step === 'IDENTIFY' && (
           <GuestIdentificationForm
             meetingId={meeting.id}
+            meetingTitle={meeting.title}
+            meetingDescription={meeting.description}
             initialInfo={guestInfo}
             onComplete={({ participantId: pid, guestInfo: info }) => {
               setParticipantId(pid);

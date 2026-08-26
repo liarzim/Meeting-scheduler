@@ -100,6 +100,11 @@ export const translations = {
     'days.shortFri': 'Fri',
     'days.shortSat': 'Sat',
 
+    // Status Badges
+    'status.open': 'OPEN',
+    'status.closed': 'CLOSED',
+    'status.scheduled': 'SCHEDULED',
+
     // Invitee Form & Calendar
     'invitee.regBadge': 'Guest Registration',
     'invitee.joinTitle': 'Join Meeting',
@@ -241,6 +246,11 @@ export const translations = {
     'days.shortThu': 'ה׳',
     'days.shortFri': 'ו׳',
     'days.shortSat': 'ש׳',
+
+    // Status Badges
+    'status.open': 'פתוח',
+    'status.closed': 'סגור',
+    'status.scheduled': 'מתוזמן',
 
     // Invitee Form & Calendar
     'invitee.regBadge': 'רישום אורח',
