@@ -19,6 +19,7 @@ interface EditParticipantModalProps {
   hostEmail?: string;
   onClose: () => void;
   onSuccess: (updatedParticipant: ParticipantWithDetails) => void;
+  onDeleteParticipant?: (participantId: string) => void;
 }
 
 export function EditParticipantModal({
@@ -33,6 +34,7 @@ export function EditParticipantModal({
   hostEmail = '',
   onClose,
   onSuccess,
+  onDeleteParticipant,
 }: EditParticipantModalProps) {
   const { dir, language } = useLanguage();
   const [fullName, setFullName] = useState('');
@@ -488,24 +490,49 @@ ${ownerName}`;
           </div>
 
           {/* Form Actions */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              {language === 'he' ? 'ביטול' : 'Cancel'}
-            </button>
+          <div className="pt-4 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
+            {!isOrganizer && onDeleteParticipant ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const nameOrEmail = fullName || email || participant.profile?.full_name || 'משתתף זה';
+                  if (
+                    confirm(
+                      language === 'he'
+                        ? `האם אתה בטוח שברצונך להסיר את המשתתף "${nameOrEmail}" מהפגישה?`
+                        : `Are you sure you want to remove participant "${nameOrEmail}" from this meeting?`
+                    )
+                  ) {
+                    onDeleteParticipant(participant.id);
+                    onClose();
+                  }
+                }}
+                className="px-4 py-2.5 rounded-xl font-extrabold text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-800/60 transition-colors flex items-center gap-1.5"
+              >
+                <span>🗑</span>
+                <span>{language === 'he' ? 'הסר משתתף מהפגישה' : 'Delete Participant'}</span>
+              </button>
+            ) : <div />}
 
-            <button
-              type="submit"
-              disabled={isSubmitting || !email.trim()}
-              className="px-6 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/30 transition-all disabled:opacity-50"
-            >
-              {isSubmitting
-                ? (language === 'he' ? 'שומר שינויים...' : 'Saving...')
-                : (language === 'he' ? 'שמור שינויים ✓' : 'Save Changes ✓')}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                {language === 'he' ? 'ביטול' : 'Cancel'}
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !email.trim()}
+                className="px-6 py-2.5 rounded-xl font-bold text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg shadow-blue-500/30 transition-all disabled:opacity-50"
+              >
+                {isSubmitting
+                  ? (language === 'he' ? 'שומר שינויים...' : 'Saving...')
+                  : (language === 'he' ? 'שמור שינויים ✓' : 'Save Changes ✓')}
+              </button>
+            </div>
           </div>
         </form>
       </div>

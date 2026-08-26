@@ -917,6 +917,10 @@ export function MeetingDetailView({
         hostName={hostName}
         hostEmail={hostEmail}
         onClose={() => setParticipantToEdit(null)}
+        onDeleteParticipant={(pId) => {
+          handleRemoveParticipant(pId);
+          setParticipantToEdit(null);
+        }}
         onSuccess={(updatedParticipant) => {
           setParticipants((prev) =>
             prev.map((p) => {
