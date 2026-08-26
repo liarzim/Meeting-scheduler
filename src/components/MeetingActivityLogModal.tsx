@@ -203,13 +203,18 @@ export function MeetingActivityLogModal({
                 const pName = p.profile?.full_name || pEmail;
                 const slotCount = p.availability?.length || 0;
 
-                // Find first submission and last update logs for this participant
-                const pLogs = availabilityLogs.filter(
-                  (l) => (l.recipient_email || '').trim().toLowerCase() === pEmail
-                );
-
-                const firstLog = pLogs.find((l) => l.type === 'AVAILABILITY_ADDED') || pLogs[pLogs.length - 1];
-                const lastLog = pLogs[0];
+                // Extract earliest and latest slot timestamps from Supabase DB
+                let firstSlotTime: string | null = null;
+                let lastSlotTime: string | null = null;
+                if (p.availability && p.availability.length > 0) {
+                  const sorted = [...p.availability].sort((a, b) => {
+                    const tA = new Date(a.start_time || (a as any).created_at || 0).getTime();
+                    const tB = new Date(b.start_time || (b as any).created_at || 0).getTime();
+                    return tA - tB;
+                  });
+                  firstSlotTime = sorted[0]?.start_time || (sorted[0] as any)?.created_at || null;
+                  lastSlotTime = sorted[sorted.length - 1]?.start_time || (sorted[sorted.length - 1] as any)?.created_at || null;
+                }
 
                 return (
                   <div
@@ -226,6 +231,11 @@ export function MeetingActivityLogModal({
                             {language === 'he' ? 'מארח' : 'Host'}
                           </span>
                         )}
+                        {p.profile?.company && (
+                          <span className="px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-medium">
+                            🏢 {p.profile.company}
+                          </span>
+                        )}
                       </div>
 
                       <span
@@ -235,7 +245,7 @@ export function MeetingActivityLogModal({
                             : 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20'
                         }`}
                       >
-                        {slotCount > 0 ? `✓ ${slotCount} slots` : '⏳ 0 slots'}
+                        {slotCount > 0 ? `✓ ${slotCount} משבצות (slots)` : '⏳ 0 slots'}
                       </span>
                     </div>
 
@@ -247,19 +257,19 @@ export function MeetingActivityLogModal({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs">
                       <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          🕒 {language === 'he' ? 'זמן דיווח ראשון:' : 'First Submission:'}
+                          🕒 {language === 'he' ? 'זמן דיווח ראשון / מוקדם:' : 'First / Earliest Submission:'}
                         </span>
                         <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold text-[11px]">
-                          {firstLog ? formatDate(firstLog.created_at) : (slotCount > 0 ? (language === 'he' ? 'דווח במערכת' : 'Submitted') : '-')}
+                          {firstLog ? formatDate(firstLog.created_at) : (firstSlotTime ? formatDate(firstSlotTime) : '-')}
                         </span>
                       </div>
 
                       <div className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                          🔄 {language === 'he' ? 'עדכון אחרון:' : 'Last Updated:'}
+                          🔄 {language === 'he' ? 'עדכון אחרון / מאוחר:' : 'Latest Update:'}
                         </span>
                         <span className="font-mono text-blue-600 dark:text-blue-400 font-semibold text-[11px]">
-                          {lastLog ? formatDate(lastLog.created_at) : (slotCount > 0 ? (language === 'he' ? 'דווח במערכת' : 'Submitted') : '-')}
+                          {lastLog ? formatDate(lastLog.created_at) : (lastSlotTime ? formatDate(lastSlotTime) : '-')}
                         </span>
                       </div>
                     </div>
