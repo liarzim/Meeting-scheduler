@@ -55,10 +55,28 @@ export function AddPastParticipantsModal({
     }
   }, [isOpen]);
 
-  // Extract unique companies list
+  // Available past participants (excluding participants already in the current meeting)
+  const availablePastParticipants = useMemo(() => {
+    return pastParticipants.filter((p) => !existingEmails.has(p.email.toLowerCase()));
+  }, [pastParticipants, existingEmails]);
+
+  // Count of participants already in the current meeting per company
+  const alreadyInMeetingCount = useMemo(() => {
+    const totalInCompany = pastParticipants.filter((p) => {
+      const comp = p.company?.trim() || 'Unassigned';
+      return selectedCompany === 'ALL' || comp.toLowerCase() === selectedCompany.toLowerCase();
+    }).length;
+    const availableInCompany = availablePastParticipants.filter((p) => {
+      const comp = p.company?.trim() || 'Unassigned';
+      return selectedCompany === 'ALL' || comp.toLowerCase() === selectedCompany.toLowerCase();
+    }).length;
+    return totalInCompany - availableInCompany;
+  }, [pastParticipants, availablePastParticipants, selectedCompany]);
+
+  // Extract unique companies list from available participants
   const companiesList = useMemo(() => {
     const set = new Set<string>();
-    pastParticipants.forEach((p) => {
+    availablePastParticipants.forEach((p) => {
       const c = p.company?.trim() || 'Unassigned';
       set.add(c);
     });
@@ -67,16 +85,11 @@ export function AddPastParticipantsModal({
       if (b === 'Unassigned') return -1;
       return a.localeCompare(b);
     });
-  }, [pastParticipants]);
+  }, [availablePastParticipants]);
 
-  // Filtered past participants list (excluding participants already in the meeting)
+  // Filtered past participants list
   const filteredPastParticipants = useMemo(() => {
-    return pastParticipants.filter((p) => {
-      // Filter out if already in the current meeting
-      if (existingEmails.has(p.email.toLowerCase())) {
-        return false;
-      }
-
+    return availablePastParticipants.filter((p) => {
       // Company Filter
       if (selectedCompany !== 'ALL') {
         const comp = p.company?.trim() || 'Unassigned';
@@ -97,7 +110,7 @@ export function AddPastParticipantsModal({
 
       return true;
     });
-  }, [pastParticipants, selectedCompany, searchQuery, existingEmails]);
+  }, [availablePastParticipants, selectedCompany, searchQuery]);
 
   if (!isOpen) return null;
 
@@ -191,10 +204,14 @@ export function AddPastParticipantsModal({
               className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer font-medium"
             >
               <option value="ALL">
-                {language === 'he' ? `🏢 כל החברות (${pastParticipants.length})` : `🏢 All Companies (${pastParticipants.length})`}
+                {language === 'he'
+                  ? `🏢 כל החברות (${availablePastParticipants.length})`
+                  : `🏢 All Companies (${availablePastParticipants.length})`}
               </option>
               {companiesList.map((company) => {
-                const count = pastParticipants.filter((p) => (p.company?.trim() || 'Unassigned').toLowerCase() === company.toLowerCase()).length;
+                const count = availablePastParticipants.filter(
+                  (p) => (p.company?.trim() || 'Unassigned').toLowerCase() === company.toLowerCase()
+                ).length;
                 const label = company === 'Unassigned'
                   ? (language === 'he' ? `ללא שיוך חברה (${count})` : `Unassigned / General (${count})`)
                   : `${company} (${count})`;
@@ -218,6 +235,18 @@ export function AddPastParticipantsModal({
             />
           </div>
         </div>
+
+        {/* Note if participants are already in meeting */}
+        {alreadyInMeetingCount > 0 && (
+          <div className="text-[11px] text-blue-700 dark:text-blue-300 bg-blue-50/80 dark:bg-blue-950/50 p-2.5 rounded-xl border border-blue-200 dark:border-blue-800 font-medium flex items-center gap-2">
+            <span>💡</span>
+            <span>
+              {language === 'he'
+                ? `שימו לב: ${alreadyInMeetingCount} משתתפים מחברה זו כבר רשומים בפגישה זו ולכן אינם מוצגים לבחירה מחדש.`
+                : `Note: ${alreadyInMeetingCount} participants from this company are already in this meeting and hidden from re-selection.`}
+            </span>
+          </div>
+        )}
 
         {/* Quick Selection Actions */}
         <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1">
