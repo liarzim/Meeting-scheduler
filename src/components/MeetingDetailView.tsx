@@ -236,33 +236,35 @@ export function MeetingDetailView({
               }
             });
 
-            // Merge with local meetingStore data to guarantee no added participants are wiped out by polling
-            const stored =
-              getStoredMeetingData(meeting.id) ||
-              getStoredMeetingData(meeting.slug) ||
-              getStoredMeetingData(normSlug) ||
-              getStoredMeetingData(normId) ||
-              [];
+            // Fallback to local meetingStore ONLY if cloud DB returned 0 participants
+            if (uniqueMap.size === 0) {
+              const stored =
+                getStoredMeetingData(meeting.id) ||
+                getStoredMeetingData(meeting.slug) ||
+                getStoredMeetingData(normSlug) ||
+                getStoredMeetingData(normId) ||
+                [];
 
-            if (stored && stored.length > 0) {
-              stored.forEach((sp: any) => {
-                if (!sp?.profile?.email) return;
-                const em = sp.profile.email.trim().toLowerCase();
-                if (
-                  em === 'organizer@company.com' ||
-                  em === 'host@company.com' ||
-                  em.includes('test-sync@') ||
-                  em.includes('organizer-test@') ||
-                  isParticipantDeleted(meeting.id, em) ||
-                  isParticipantDeleted(meeting.slug, em) ||
-                  (sp.id && isParticipantDeleted(meeting.id, sp.id))
-                ) {
-                  return;
-                }
-                if (!uniqueMap.has(em)) {
-                  uniqueMap.set(em, sp);
-                }
-              });
+              if (stored && stored.length > 0) {
+                stored.forEach((sp: any) => {
+                  if (!sp?.profile?.email) return;
+                  const em = sp.profile.email.trim().toLowerCase();
+                  if (
+                    em === 'organizer@company.com' ||
+                    em === 'host@company.com' ||
+                    em.includes('test-sync@') ||
+                    em.includes('organizer-test@') ||
+                    isParticipantDeleted(meeting.id, em) ||
+                    isParticipantDeleted(meeting.slug, em) ||
+                    (sp.id && isParticipantDeleted(meeting.id, sp.id))
+                  ) {
+                    return;
+                  }
+                  if (!uniqueMap.has(em)) {
+                    uniqueMap.set(em, sp);
+                  }
+                });
+              }
             }
 
             // Ensure meeting owner (organizer) is present
