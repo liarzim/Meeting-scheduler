@@ -588,7 +588,6 @@ export function MeetingDetailView({
               email: cleanEmail,
               full_name: cleanName,
               company: company || null,
-              role: role || null,
               is_organizer: false,
             },
           ],

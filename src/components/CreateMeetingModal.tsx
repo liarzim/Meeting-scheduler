@@ -332,7 +332,6 @@ export function CreateMeetingModal({ isOpen, onClose, onSuccess }: CreateMeeting
                   email: item.profile.email,
                   full_name: item.profile.full_name,
                   company: item.profile.company,
-                  role: item.profile.role,
                   phone_number: item.profile.phone_number,
                   is_organizer: item.profile.is_organizer || false,
                 },

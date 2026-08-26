@@ -110,8 +110,18 @@ export function unmarkParticipantDeleted(meetingKey: string, emailOrId: string) 
     const mNorm = normalizeKey(meetingKey);
     const targetNorm = emailOrId.trim().toLowerCase();
 
-    if (map[mNorm]) {
-      map[mNorm] = map[mNorm].filter((item) => item.trim().toLowerCase() !== targetNorm);
+    let changed = false;
+    for (const k of Object.keys(map)) {
+      if (k === meetingKey || normalizeKey(k) === mNorm) {
+        const list = map[k] || [];
+        const filtered = list.filter((item) => item.trim().toLowerCase() !== targetNorm);
+        if (filtered.length !== list.length) {
+          map[k] = filtered;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
       localStorage.setItem(DELETED_PARTICIPANTS_KEY, JSON.stringify(map));
     }
   } catch (err) {
