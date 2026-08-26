@@ -498,19 +498,28 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
             partId = generateUUID();
           }
 
-          await supabaseClient
+          const { data: existingPart } = await supabaseClient
             .from('meeting_participants')
-            .upsert(
-              [
-                {
-                  id: partId,
-                  meeting_id: realMeetingId,
-                  profile_id: finalProfId,
-                  is_required: sp.is_required !== false,
-                },
-              ],
-              { onConflict: 'id' }
-            );
+            .select('id')
+            .eq('meeting_id', realMeetingId)
+            .eq('profile_id', finalProfId)
+            .maybeSingle();
+
+          if (!existingPart) {
+            await supabaseClient
+              .from('meeting_participants')
+              .upsert(
+                [
+                  {
+                    id: partId,
+                    meeting_id: realMeetingId,
+                    profile_id: finalProfId,
+                    is_required: sp.is_required !== false,
+                  },
+                ],
+                { onConflict: 'id' }
+              );
+          }
         }
       }
     }
