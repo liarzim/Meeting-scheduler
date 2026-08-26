@@ -10,6 +10,7 @@ import { getWeekDates, formatDateShort } from '@/lib/timezone';
 import { updateParticipantSlots, getStoredMeetingData, normalizeKey } from '@/lib/meetingStore';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { UserGuideModal } from './UserGuideModal';
+import { generateUUID } from '@/lib/uuid';
 
 interface InviteeCalendarProps {
   meetingId?: string;
@@ -457,9 +458,7 @@ export function InviteeCalendar({
             const validPartUUID =
               participantId && participantId.length === 36 && !participantId.startsWith('part-')
                 ? participantId
-                : typeof crypto !== 'undefined' && crypto.randomUUID
-                ? crypto.randomUUID()
-                : participantId;
+                : generateUUID();
 
             const { data: newPart } = await (supabase.from('meeting_participants') as any)
               .upsert(
@@ -485,10 +484,10 @@ export function InviteeCalendar({
               .delete()
               .eq('participant_id', targetParticipantId);
 
-            // Insert new slots with valid UUIDs
+            // Insert new slots with valid RFC4122 UUIDs
             if (slotsToInsert.length > 0) {
               const dbPayload = slotsToInsert.map((s) => ({
-                id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : s.id,
+                id: generateUUID(),
                 participant_id: targetParticipantId,
                 start_time: s.start_time,
                 end_time: s.end_time,
