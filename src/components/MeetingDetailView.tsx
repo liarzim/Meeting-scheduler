@@ -17,7 +17,16 @@ import { SendReminderModal } from './SendReminderModal';
 import { EditParticipantModal } from './EditParticipantModal';
 import { AddPastParticipantsModal } from './AddPastParticipantsModal';
 import { useLanguage } from '@/context/LanguageContext';
-import { getStoredMeetingData, saveStoredMeetingData, getStoredMeetingBySlug, normalizeKey, deleteStoredMeeting } from '@/lib/meetingStore';
+import {
+  getStoredMeetingData,
+  saveStoredMeetingData,
+  getStoredMeetingBySlug,
+  normalizeKey,
+  deleteStoredMeeting,
+  markParticipantDeleted,
+  unmarkParticipantDeleted,
+  isParticipantDeleted,
+} from '@/lib/meetingStore';
 import { getGuestCookie, type GuestInfo } from '@/lib/cookies';
 import { generateUUID } from '@/lib/uuid';
 
@@ -205,10 +214,16 @@ export function MeetingDetailView({
                 };
               });
 
-            // Deduplicate by email strictly
+            // Deduplicate by email strictly, skipping deleted participants
             const uniqueMap = new Map<string, ParticipantWithDetails>();
             dbParticipants.forEach((p) => {
               const em = (p.profile?.email || '').trim().toLowerCase();
+              if (em && (isParticipantDeleted(meeting.id, em) || isParticipantDeleted(meeting.slug, em))) {
+                return;
+              }
+              if (p.id && (isParticipantDeleted(meeting.id, p.id) || isParticipantDeleted(meeting.slug, p.id))) {
+                return;
+              }
               const key = em || p.id;
               if (!uniqueMap.has(key)) {
                 uniqueMap.set(key, p);
@@ -237,7 +252,10 @@ export function MeetingDetailView({
                   em === 'organizer@company.com' ||
                   em === 'host@company.com' ||
                   em.includes('test-sync@') ||
-                  em.includes('organizer-test@')
+                  em.includes('organizer-test@') ||
+                  isParticipantDeleted(meeting.id, em) ||
+                  isParticipantDeleted(meeting.slug, em) ||
+                  (sp.id && isParticipantDeleted(meeting.id, sp.id))
                 ) {
                   return;
                 }
@@ -500,6 +518,9 @@ export function MeetingDetailView({
     const cleanName = name.trim() || cleanEmail.split('@')[0];
     if (!cleanEmail) return;
 
+    unmarkParticipantDeleted(meeting.id, cleanEmail);
+    if (meeting.slug) unmarkParticipantDeleted(meeting.slug, cleanEmail);
+
     const newProfId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
     const newPartId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
 
@@ -605,7 +626,16 @@ export function MeetingDetailView({
     const targetEmail = target.profile?.email?.trim().toLowerCase();
     const targetId = target.id;
 
-    // 1. Optimistic UI update and purge across all local storage keys
+    // 1. Mark participant as deleted persistently
+    if (targetEmail) {
+      markParticipantDeleted(meeting.id, targetEmail);
+      if (meeting.slug) markParticipantDeleted(meeting.slug, targetEmail);
+    }
+    if (targetId) {
+      markParticipantDeleted(meeting.id, targetId);
+    }
+
+    // 2. Optimistic UI update and purge across all local storage keys
     setParticipants((prev) => {
       const updated = prev.filter(
         (p) => p.id !== targetId && (!targetEmail || (p.profile?.email || '').trim().toLowerCase() !== targetEmail)

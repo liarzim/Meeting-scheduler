@@ -5,6 +5,7 @@ import { generateUUID } from './uuid';
 const STORAGE_KEY = 'meeting_scheduler_store_v1';
 const MEETINGS_LIST_KEY = 'meeting_scheduler_meetings_list_v1';
 const DELETED_MEETINGS_KEY = 'meeting_scheduler_deleted_ids_v1';
+const DELETED_PARTICIPANTS_KEY = 'meeting_scheduler_deleted_participants_v1';
 const LIVE_SYNC_CHANNEL_NAME = 'meeting_scheduler_live_sync_v1';
 
 export interface TopTimeSlot {
@@ -55,6 +56,66 @@ export function markMeetingDeleted(idOrSlug: string) {
     }
   } catch (err) {
     console.warn('Failed to mark meeting deleted:', err);
+  }
+}
+
+export function getDeletedParticipantsMap(): Record<string, string[]> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(DELETED_PARTICIPANTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function isParticipantDeleted(meetingKey: string, emailOrId: string): boolean {
+  if (!meetingKey || !emailOrId) return false;
+  const map = getDeletedParticipantsMap();
+  const mNorm = normalizeKey(meetingKey);
+  const targetNorm = emailOrId.trim().toLowerCase();
+
+  for (const [k, list] of Object.entries(map)) {
+    if (normalizeKey(k) === mNorm) {
+      if (list.some((item) => item.trim().toLowerCase() === targetNorm)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+export function markParticipantDeleted(meetingKey: string, emailOrId: string) {
+  if (typeof window === 'undefined' || !meetingKey || !emailOrId) return;
+  try {
+    const map = getDeletedParticipantsMap();
+    const mNorm = normalizeKey(meetingKey);
+    const targetNorm = emailOrId.trim().toLowerCase();
+
+    const list = map[mNorm] || [];
+    if (!list.includes(targetNorm)) {
+      list.push(targetNorm);
+      map[mNorm] = list;
+      localStorage.setItem(DELETED_PARTICIPANTS_KEY, JSON.stringify(map));
+    }
+  } catch (err) {
+    console.warn('Failed to mark participant deleted:', err);
+  }
+}
+
+export function unmarkParticipantDeleted(meetingKey: string, emailOrId: string) {
+  if (typeof window === 'undefined' || !meetingKey || !emailOrId) return;
+  try {
+    const map = getDeletedParticipantsMap();
+    const mNorm = normalizeKey(meetingKey);
+    const targetNorm = emailOrId.trim().toLowerCase();
+
+    if (map[mNorm]) {
+      map[mNorm] = map[mNorm].filter((item) => item.trim().toLowerCase() !== targetNorm);
+      localStorage.setItem(DELETED_PARTICIPANTS_KEY, JSON.stringify(map));
+    }
+  } catch (err) {
+    console.warn('Failed to unmark participant deleted:', err);
   }
 }
 
@@ -475,12 +536,15 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
           if (!sp?.profile?.email) continue;
           const em = sp.profile.email.trim().toLowerCase();
           
-          // Skip test/placeholder accounts
+          // Skip test/placeholder accounts and deleted participants
           if (
             em === 'organizer@company.com' ||
             em === 'host@company.com' ||
             em.includes('test-sync@') ||
-            em.includes('organizer-test@')
+            em.includes('organizer-test@') ||
+            isParticipantDeleted(m.id, em) ||
+            isParticipantDeleted(m.slug, em) ||
+            (sp.id && isParticipantDeleted(m.id, sp.id))
           ) {
             continue;
           }

@@ -7,7 +7,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { LanguageToggle } from './LanguageToggle';
 import { TimezoneSelector } from './TimezoneSelector';
 import { getWeekDates, formatDateShort } from '@/lib/timezone';
-import { updateParticipantSlots, getStoredMeetingData, normalizeKey } from '@/lib/meetingStore';
+import { updateParticipantSlots, getStoredMeetingData, normalizeKey, isParticipantDeleted } from '@/lib/meetingStore';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { UserGuideModal } from './UserGuideModal';
 import { generateUUID } from '@/lib/uuid';
@@ -91,8 +91,15 @@ export function InviteeCalendar({
         if (!dbErr && dbData && dbData.meeting_participants && dbData.meeting_participants.length > 0) {
           loaded = dbData.meeting_participants
             .filter((mp: any) => {
-              const em = (mp.profiles?.email || '').toLowerCase();
-              return em !== 'organizer@company.com' && em !== 'host@company.com';
+              const em = (mp.profiles?.email || '').trim().toLowerCase();
+              if (em === 'organizer@company.com' || em === 'host@company.com') return false;
+              if (em && (isParticipantDeleted(key, em) || isParticipantDeleted(meetingId || '', em) || isParticipantDeleted(meetingSlug || '', em))) {
+                return false;
+              }
+              if (mp.id && (isParticipantDeleted(key, mp.id) || isParticipantDeleted(meetingId || '', mp.id) || isParticipantDeleted(meetingSlug || '', mp.id))) {
+                return false;
+              }
+              return true;
             })
             .map((mp: any) => ({
               id: mp.id,
@@ -122,8 +129,15 @@ export function InviteeCalendar({
       if (loaded.length === 0) {
         const stored = getStoredMeetingData(key) || getStoredMeetingData(normalizeKey(key)) || [];
         loaded = stored.filter((p) => {
-          const em = (p.profile?.email || '').toLowerCase();
-          return em !== 'organizer@company.com' && em !== 'host@company.com';
+          const em = (p.profile?.email || '').trim().toLowerCase();
+          if (em === 'organizer@company.com' || em === 'host@company.com') return false;
+          if (em && (isParticipantDeleted(key, em) || isParticipantDeleted(meetingId || '', em) || isParticipantDeleted(meetingSlug || '', em))) {
+            return false;
+          }
+          if (p.id && (isParticipantDeleted(key, p.id) || isParticipantDeleted(meetingId || '', p.id) || isParticipantDeleted(meetingSlug || '', p.id))) {
+            return false;
+          }
+          return true;
         });
       }
 
