@@ -203,6 +203,13 @@ export function MeetingActivityLogModal({
                 const pName = p.profile?.full_name || pEmail;
                 const slotCount = p.availability?.length || 0;
 
+                // Find first submission and last update logs for this participant
+                const pLogs = availabilityLogs.filter(
+                  (l) => (l.recipient_email || '').trim().toLowerCase() === pEmail
+                );
+                const firstLog = pLogs.find((l) => l.type === 'AVAILABILITY_ADDED') || pLogs[pLogs.length - 1];
+                const lastLog = pLogs[0];
+
                 // Extract earliest and latest slot timestamps from Supabase DB
                 let firstSlotTime: string | null = null;
                 let lastSlotTime: string | null = null;
