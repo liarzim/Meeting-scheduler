@@ -628,6 +628,7 @@ export function MeetingDetailView({
           selectedDate={selectedDate}
           onSelectDate={setSelectedDate}
           participants={participants}
+          meetingSlug={meeting.slug}
           onToggleRequired={toggleRequired}
           onRemoveParticipant={handleRemoveParticipant}
           onAddParticipant={handleAddParticipant}

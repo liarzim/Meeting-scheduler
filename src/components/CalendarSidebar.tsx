@@ -10,6 +10,7 @@ interface CalendarSidebarProps {
   onSelectDate?: (date: Date) => void;
   onCreateClick?: () => void;
   participants?: ParticipantWithDetails[];
+  meetingSlug?: string;
   onToggleRequired?: (id: string) => void;
   onRemoveParticipant?: (id: string) => void;
   onAddParticipant?: (name: string, email: string) => void;
@@ -23,6 +24,7 @@ export function CalendarSidebar({
   onSelectDate,
   onCreateClick,
   participants,
+  meetingSlug = '',
   onToggleRequired,
   onRemoveParticipant,
   onAddParticipant,
@@ -117,6 +119,33 @@ export function CalendarSidebar({
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pName = p.profile?.full_name || '';
+                        const pEmail = p.profile?.email || '';
+                        const pComp = p.profile?.company || '';
+                        const pPhone = p.profile?.phone_number || '';
+                        const pRole = (p.profile as any)?.role || '';
+
+                        const params = new URLSearchParams();
+                        if (p.id) params.set('pid', p.id);
+                        if (p.profile_id) params.set('prof', p.profile_id);
+                        if (pName) params.set('name', pName);
+                        if (pEmail) params.set('email', pEmail);
+                        if (pComp) params.set('company', pComp);
+                        if (pPhone) params.set('phone', pPhone);
+                        if (pRole) params.set('role', pRole);
+
+                        const targetUrl = `/${meetingSlug || ''}?${params.toString()}`;
+                        window.open(targetUrl, '_blank');
+                      }}
+                      className="p-1 rounded-lg text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors text-xs"
+                      title={language === 'he' ? 'עדכן זמינות עבור משתתף זה בלשונית חדשה' : 'Update availability for this participant in a new tab'}
+                    >
+                      📅
+                    </button>
+
                     {onEditParticipant && (
                       <button
                         type="button"

@@ -441,6 +441,52 @@ ${ownerName}`;
             </div>
           </div>
 
+          {/* Update Availability for Participant Button */}
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl">📅</span>
+                <div>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    {language === 'he' ? 'עדכון זמינות עבור משתתף זה' : 'Update Availability for Participant'}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {language === 'he'
+                      ? 'פתח את לוח הזמנים בחלון חדש להזנה/עדכון משבצות זמינות עבור משתתף זה'
+                      : 'Open calendar in new tab/window to submit availability for this participant'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const pName = fullName || participant.profile?.full_name || '';
+                  const pEmail = email || participant.profile?.email || '';
+                  const pComp = company || participant.profile?.company || '';
+                  const pPhone = phone || participant.profile?.phone_number || '';
+                  const pRole = role || (participant.profile as any)?.role || '';
+                  const pId = participant.id || '';
+                  const profId = participant.profile_id || participant.profile?.id || '';
+
+                  const params = new URLSearchParams();
+                  if (pId) params.set('pid', pId);
+                  if (profId) params.set('prof', profId);
+                  if (pName) params.set('name', pName);
+                  if (pEmail) params.set('email', pEmail);
+                  if (pComp) params.set('company', pComp);
+                  if (pPhone) params.set('phone', pPhone);
+                  if (pRole) params.set('role', pRole);
+
+                  const targetUrl = `/${meetingSlug}?${params.toString()}`;
+                  window.open(targetUrl, '_blank');
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap"
+              >
+                <span>{language === 'he' ? 'עדכן זמינות בלשונית חדשה ↗' : 'Update Availability ↗'}</span>
+              </button>
+            </div>
+          </div>
+
           {/* Form Actions */}
           <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200 dark:border-slate-800">
             <button

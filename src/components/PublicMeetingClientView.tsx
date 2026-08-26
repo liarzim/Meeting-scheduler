@@ -28,8 +28,31 @@ export function PublicMeetingClientView({ slug }: PublicMeetingClientViewProps) 
   const [guestInfo, setGuestInfo] = useState<GuestInfo>({ full_name: '', email: '' });
   const [participantId, setParticipantId] = useState<string>('');
 
-  // Check saved guest info
+  // Check URL query parameters or saved guest info
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const pid = searchParams.get('pid');
+      const name = searchParams.get('name');
+      const email = searchParams.get('email');
+      const company = searchParams.get('company');
+      const phone = searchParams.get('phone');
+      const role = searchParams.get('role');
+
+      if (pid || email || name) {
+        if (pid) setParticipantId(pid);
+        setGuestInfo({
+          full_name: name || '',
+          email: email || '',
+          company: company || '',
+          phone_number: phone || '',
+          role: role || '',
+        });
+        setStep('CALENDAR');
+        return;
+      }
+    }
+
     const saved = getGuestCookie();
     if (saved && saved.full_name) {
       setGuestInfo(saved);
