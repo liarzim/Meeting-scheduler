@@ -520,11 +520,30 @@ export function MeetingDetailView({
     const cleanName = name.trim() || cleanEmail.split('@')[0];
     if (!cleanEmail) return;
 
+    // Check if participant/host already exists in this meeting
+    const existing = participants.find(
+      (p) => (p.profile?.email || '').trim().toLowerCase() === cleanEmail
+    );
+
+    if (existing) {
+      const isHost = existing.profile?.is_organizer;
+      const msg = isHost
+        ? (language === 'he'
+            ? `משתתף זה (${cleanEmail}) הוא כבר מארח הפגישה!`
+            : `This participant (${cleanEmail}) is already the meeting host!`)
+        : (language === 'he'
+            ? `משתתף עם כתובת דוא"ל זו (${cleanEmail}) כבר רשום בפגישה!`
+            : `A participant with this email (${cleanEmail}) is already in the meeting!`);
+
+      alert(msg);
+      return;
+    }
+
     unmarkParticipantDeleted(meeting.id, cleanEmail);
     if (meeting.slug) unmarkParticipantDeleted(meeting.slug, cleanEmail);
 
-    const newProfId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prof-${Date.now()}`;
-    const newPartId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `part-${Date.now()}`;
+    const newProfId = generateUUID();
+    const newPartId = generateUUID();
 
     const newParticipant: ParticipantWithDetails = {
       id: newPartId,
@@ -593,18 +612,26 @@ export function MeetingDetailView({
       const { data: mRes } = await meetingQuery.maybeSingle();
       const realMeetingId = mRes?.id || normKey;
 
-      await (supabase.from('meeting_participants') as any)
-        .upsert(
-          [
-            {
-              id: newPartId,
-              meeting_id: realMeetingId,
-              profile_id: finalProfId,
-              is_required: isRequired,
-            },
-          ],
-          { onConflict: 'id' }
-        );
+      const { data: existingPart } = await (supabase.from('meeting_participants') as any)
+        .select('id')
+        .eq('meeting_id', realMeetingId)
+        .eq('profile_id', finalProfId)
+        .maybeSingle();
+
+      if (!existingPart) {
+        await (supabase.from('meeting_participants') as any)
+          .upsert(
+            [
+              {
+                id: newPartId,
+                meeting_id: realMeetingId,
+                profile_id: finalProfId,
+                is_required: isRequired,
+              },
+            ],
+            { onConflict: 'id' }
+          );
+      }
     } catch (err) {
       console.warn('Supabase DB add participant notice:', err);
     }
