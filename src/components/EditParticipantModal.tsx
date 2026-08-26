@@ -41,6 +41,7 @@ export function EditParticipantModal({
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('');
   const [isRequired, setIsRequired] = useState(true);
+  const [isMakeHost, setIsMakeHost] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +54,7 @@ export function EditParticipantModal({
       setCompany(participant.profile?.company || '');
       setRole((participant.profile as any)?.role || '');
       setIsRequired(participant.is_required !== false);
+      setIsMakeHost(!!participant.profile?.is_organizer);
       setError(null);
     }
   }, [participant]);
@@ -133,6 +135,11 @@ ${ownerName}`;
     setIsSubmitting(true);
     setError(null);
 
+    let finalFullName = cleanName || cleanEmail;
+    if (isMakeHost && !finalFullName.includes('(Host)')) {
+      finalFullName = `${finalFullName} (Host)`;
+    }
+
     const updatedParticipant: ParticipantWithDetails = {
       ...participant,
       is_required: isRequired,
@@ -140,10 +147,10 @@ ${ownerName}`;
         ...participant.profile,
         id: participant.profile_id || participant.profile?.id || `prof-${Date.now()}`,
         email: cleanEmail,
-        full_name: cleanName || cleanEmail,
+        full_name: finalFullName,
         company: cleanCompany || null,
         phone_number: cleanPhone || null,
-        is_organizer: isOrganizer,
+        is_organizer: isMakeHost,
         role: cleanRole || null,
       } as any,
     };
@@ -153,15 +160,23 @@ ${ownerName}`;
       if (participant.profile_id) {
         await (supabase.from('profiles') as any)
           .update({
-            full_name: cleanName || cleanEmail,
+            full_name: finalFullName,
             email: cleanEmail,
             phone_number: cleanPhone || null,
             company: cleanCompany || null,
+            is_organizer: isMakeHost,
           })
           .eq('id', participant.profile_id);
       }
 
-      // 2. Update Supabase meeting_participants table is_required status
+      // 2. If designated as Host, transfer meeting ownership in meetings table
+      if (isMakeHost && participant.profile_id) {
+        await (supabase.from('meetings') as any)
+          .update({ organizer_id: participant.profile_id })
+          .or(`id.eq.${meetingId},slug.eq.${meetingSlug}`);
+      }
+
+      // 3. Update Supabase meeting_participants table is_required status
       if (participant.id) {
         await (supabase.from('meeting_participants') as any)
           .update({
@@ -394,6 +409,36 @@ ${ownerName}`;
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
               💡 {language === 'he' ? 'משתתפי חובה נלקחים בחשבון בחישוב אחוזי מפת החום הקבוצתית.' : 'Required participants are included in the 100% group heatmap matching calculations.'}
             </p>
+          </div>
+
+          {/* Make Meeting Owner / Host Toggle */}
+          <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center justify-between p-3 rounded-2xl bg-blue-50/60 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">👑</span>
+                <div>
+                  <div className="text-xs font-extrabold text-slate-900 dark:text-white">
+                    {language === 'he' ? 'מארח / מנהל הפגישה (Host)' : 'Meeting Owner (Host)'}
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {language === 'he' ? 'הגדר משתתף זה כבעלים ומארח הפגישה' : 'Designate this participant as the meeting owner'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMakeHost(!isMakeHost)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
+                  isMakeHost
+                    ? 'bg-blue-600 text-white border border-blue-500'
+                    : 'bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                {isMakeHost
+                  ? (language === 'he' ? '✓ מוגדר כמארח' : '✓ Is Meeting Host')
+                  : (language === 'he' ? 'הגדר כמארח' : 'Make Host')}
+              </button>
+            </div>
           </div>
 
           {/* Form Actions */}
