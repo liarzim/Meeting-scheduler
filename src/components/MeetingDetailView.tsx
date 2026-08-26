@@ -17,6 +17,7 @@ import { SendReminderModal } from './SendReminderModal';
 import { EditParticipantModal } from './EditParticipantModal';
 import { AddPastParticipantsModal } from './AddPastParticipantsModal';
 import { SearchParticipantModal } from './SearchParticipantModal';
+import { MeetingActivityLogModal } from './MeetingActivityLogModal';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   getStoredMeetingData,
@@ -53,6 +54,7 @@ export function MeetingDetailView({
   const [reminderInitialEmail, setReminderInitialEmail] = useState<string | null>(null);
   const [isPastParticipantsModalOpen, setIsPastParticipantsModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isActivityLogModalOpen, setIsActivityLogModalOpen] = useState(false);
   const [participantToEdit, setParticipantToEdit] = useState<ParticipantWithDetails | null>(null);
   const [hostName, setHostName] = useState('');
   const [hostEmail, setHostEmail] = useState('');
@@ -859,6 +861,15 @@ export function MeetingDetailView({
                   </button>
 
                   <button
+                    onClick={() => setIsActivityLogModalOpen(true)}
+                    className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-amber-200 dark:border-amber-800 shadow-sm hover:scale-105 active:scale-95"
+                    title={language === 'he' ? 'יומן שליחת מיילים ודיווחי זמינות משתתפים' : 'View Email & Availability Activity Logs'}
+                  >
+                    <span>📜</span>
+                    <span>{language === 'he' ? 'יומן פעילות' : 'Activity Logs'}</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsEmailModalOpen(true)}
                     className="p-3 rounded-xl bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-xs font-bold transition-all flex items-center gap-1.5 border border-purple-200 dark:border-purple-800 shadow-sm hover:scale-105 active:scale-95"
                     title={language === 'he' ? 'שלח זימונים במייל' : 'Send Email Invitations'}
@@ -1033,6 +1044,15 @@ export function MeetingDetailView({
         onClose={() => setIsSearchModalOpen(false)}
         participants={participants}
         onSelectParticipant={(p) => setParticipantToEdit(p)}
+      />
+
+      {/* Meeting Activity & Audit Log Modal */}
+      <MeetingActivityLogModal
+        isOpen={isActivityLogModalOpen}
+        onClose={() => setIsActivityLogModalOpen(false)}
+        meetingId={meeting.id}
+        meetingSlug={meeting.slug}
+        participants={participants}
       />
     </div>
   );

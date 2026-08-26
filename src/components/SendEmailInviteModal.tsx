@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Meeting } from '@/types';
 import { useLanguage } from '@/context/LanguageContext';
+import { addMeetingActivityLog } from '@/lib/meetingStore';
 
 interface SendEmailInviteModalProps {
   isOpen: boolean;
@@ -100,6 +101,14 @@ ${cleanHostName}`;
 
     const toStr = emails.join(';');
     const ccStr = hostEmail ? hostEmail.trim() : '';
+
+    if (meeting?.id) {
+      addMeetingActivityLog(meeting.id, {
+        type: 'EMAIL_INVITE',
+        recipient_email: toStr,
+        details: `שליחת זימון במייל ל-${emails.length} נמענים`,
+      });
+    }
 
     const mailtoUrl = `mailto:${encodeURIComponent(toStr)}?cc=${encodeURIComponent(ccStr)}&subject=${encodeURIComponent(subjectStr)}&body=${encodeURIComponent(bodyStr)}`;
 

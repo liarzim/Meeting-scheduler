@@ -623,3 +623,70 @@ export async function syncLocalMeetingsToCloud(supabaseClient: any) {
     console.warn('Sync local meetings to cloud notice:', err);
   }
 }
+
+const ACTIVITY_LOGS_KEY = 'meeting_scheduler_activity_logs_v1';
+
+export interface MeetingActivityLog {
+  id: string;
+  meeting_id: string;
+  type: 'EMAIL_INVITE' | 'EMAIL_REMINDER' | 'AVAILABILITY_ADDED' | 'AVAILABILITY_UPDATED';
+  recipient_email?: string;
+  recipient_name?: string;
+  details?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export function getMeetingActivityLogs(meetingKey: string): MeetingActivityLog[] {
+  if (typeof window === 'undefined' || !meetingKey) return [];
+  try {
+    const raw = localStorage.getItem(ACTIVITY_LOGS_KEY);
+    if (!raw) return [];
+    const allMap: Record<string, MeetingActivityLog[]> = JSON.parse(raw);
+    const norm = normalizeKey(meetingKey);
+
+    for (const [k, list] of Object.entries(allMap)) {
+      if (k === meetingKey || normalizeKey(k) === norm) {
+        return list || [];
+      }
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function addMeetingActivityLog(
+  meetingKey: string,
+  logData: Omit<MeetingActivityLog, 'id' | 'meeting_id' | 'created_at'>
+): MeetingActivityLog | null {
+  if (typeof window === 'undefined' || !meetingKey) return null;
+  try {
+    const raw = localStorage.getItem(ACTIVITY_LOGS_KEY);
+    const allMap: Record<string, MeetingActivityLog[]> = raw ? JSON.parse(raw) : {};
+    const norm = normalizeKey(meetingKey);
+
+    const targetKey = norm || meetingKey;
+    const existingList = allMap[targetKey] || [];
+
+    const newLog: MeetingActivityLog = {
+      id: generateUUID(),
+      meeting_id: targetKey,
+      created_at: new Date().toISOString(),
+      ...logData,
+    };
+
+    const updatedList = [newLog, ...existingList];
+    allMap[targetKey] = updatedList;
+
+    localStorage.setItem(ACTIVITY_LOGS_KEY, JSON.stringify(allMap));
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('meeting_activity_log_updated'));
+    }
+    return newLog;
+  } catch (err) {
+    console.warn('Failed to add meeting activity log:', err);
+    return null;
+  }
+}

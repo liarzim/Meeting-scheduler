@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Meeting } from '@/types';
 import type { ParticipantWithDetails } from './MeetingHeatmap';
 import { useLanguage } from '@/context/LanguageContext';
+import { addMeetingActivityLog } from '@/lib/meetingStore';
 
 interface SendReminderModalProps {
   isOpen: boolean;
@@ -155,6 +156,15 @@ ${cleanHostName}`;
     }
 
     const bccList = selectedList.join(';');
+
+    if (meeting?.id) {
+      addMeetingActivityLog(meeting.id, {
+        type: 'EMAIL_REMINDER',
+        recipient_email: bccList,
+        details: `שליחת תזכורת במייל ל-${selectedList.length} משתתפים`,
+      });
+    }
+
     const mailtoUrl = `mailto:?bcc=${encodeURIComponent(bccList)}&subject=${encodeURIComponent(customSubject)}&body=${encodeURIComponent(customBody)}`;
     window.open(mailtoUrl, '_blank');
   };
@@ -163,6 +173,15 @@ ${cleanHostName}`;
     if (selectedList.length === 0) {
       setError(language === 'he' ? 'אנא בחר לפחות משתתף אחד למשלוח תזכורת' : 'Please select at least one participant.');
       return;
+    }
+
+    const bccList = selectedList.join(';');
+    if (meeting?.id) {
+      addMeetingActivityLog(meeting.id, {
+        type: 'EMAIL_REMINDER',
+        recipient_email: bccList,
+        details: `העתקת טקסט תזכורת ל-${selectedList.length} משתתפים`,
+      });
     }
 
     const textToCopy = `נמענים: ${selectedList.join('; ')}\n\nנושא: ${customSubject}\n\n${customBody}`;

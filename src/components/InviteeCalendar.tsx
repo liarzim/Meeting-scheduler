@@ -7,7 +7,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { LanguageToggle } from './LanguageToggle';
 import { TimezoneSelector } from './TimezoneSelector';
 import { getWeekDates, formatDateShort } from '@/lib/timezone';
-import { updateParticipantSlots, getStoredMeetingData, normalizeKey, isParticipantDeleted } from '@/lib/meetingStore';
+import { updateParticipantSlots, getStoredMeetingData, normalizeKey, isParticipantDeleted, addMeetingActivityLog } from '@/lib/meetingStore';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { UserGuideModal } from './UserGuideModal';
 import { generateUUID } from '@/lib/uuid';
@@ -513,6 +513,16 @@ export function InviteeCalendar({
         }
       } catch (dbErr) {
         console.warn('Supabase DB availability insert fallback:', dbErr);
+      }
+
+      const targetKey = meetingId || meetingSlug || '';
+      if (targetKey) {
+        addMeetingActivityLog(targetKey, {
+          type: 'AVAILABILITY_UPDATED',
+          recipient_email: guestInfo.email,
+          recipient_name: guestInfo.name,
+          details: `דיווח/עדכן זמינות עבור ${slotsToInsert.length} משבצות זמן`,
+        });
       }
 
       onSubmitted();
