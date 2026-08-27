@@ -75,19 +75,24 @@ export function SendEmailInviteModal({
   if (language === 'he') {
     bodyStr = `שלום,
 
-אשמח לתאם פגישה בהקדם בנושא ${meeting.title} .
-מטרת הפגישה היא ${descText}.
-לצורך התיאום, יש להיכנס לקישור הבא ולעדכן אילו מועדים זמינים לקיום הפגישה :${shareableUrl}
+אשמח לתאם פגישה בהקדם בנושא ${meeting.title}.
+מטרת הפגישה: ${descText}.
 
-תודה מראש ,
+לצורך התיאום, יש להיכנס לקישור הבא ולעדכן אילו מועדים זמינים לקיום הפגישה:
+
+${shareableUrl}
+
+תודה מראש,
 ${cleanHostName}`;
   } else {
     bodyStr = `Hello,
 
 I would like to schedule a meeting soon regarding ${meeting.title}.
-The purpose of the meeting is ${descText}.
+Meeting purpose: ${descText}.
 
-To help coordinate, please access the link below and update your available times for the meeting: ${shareableUrl}
+To help coordinate, please click the link below to update your available times:
+
+${shareableUrl}
 
 Thanks in advance,
 ${cleanHostName}`;
