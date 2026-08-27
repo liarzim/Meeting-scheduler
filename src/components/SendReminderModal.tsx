@@ -191,6 +191,30 @@ ${cleanHostName}`;
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownloadICS = () => {
+    const icsContent = generateICSContent(meetingTitle, descText, shareableUrl, cleanHostName);
+    downloadBlobFile(`meeting-reminder-${meeting?.slug || 'event'}.ics`, icsContent, 'text/calendar');
+    if (meeting?.id) {
+      addMeetingActivityLog(meeting.id, {
+        type: 'EMAIL_REMINDER',
+        recipient_email: selectedList.join(';'),
+        details: 'הורדת קובץ זימון (.ics) להפצה מחשבון מייל אחר',
+      });
+    }
+  };
+
+  const handleDownloadEML = () => {
+    const emlContent = generateEMLContent(selectedList, customSubject, customBody, hostEmail);
+    downloadBlobFile(`meeting-reminder-${meeting?.slug || 'email'}.eml`, emlContent, 'message/rfc822');
+    if (meeting?.id) {
+      addMeetingActivityLog(meeting.id, {
+        type: 'EMAIL_REMINDER',
+        recipient_email: selectedList.join(';'),
+        details: 'הורדת קובץ מייל מוכן (.eml) להפצה מחשבון מייל אחר',
+      });
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" dir={dir}>
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 md:p-8 max-w-2xl w-full shadow-2xl space-y-6 text-slate-900 dark:text-slate-100 my-8">
