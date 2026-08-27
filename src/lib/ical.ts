@@ -37,19 +37,44 @@ export function generateEMLContent(
   hostEmail?: string
 ): string {
   const toHeader = recipients.join('; ');
-  const fromHeader = hostEmail || 'organizer@meeting-scheduler.com';
+  const ccHeader = hostEmail ? hostEmail.trim() : '';
 
-  return [
-    `From: ${fromHeader}`,
-    `To: ${toHeader}`,
-    `Subject: ${subject}`,
+  // Convert plain text body to HTML for Outlook Compose Window (Screenshot 2)
+  const htmlBody = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #1e293b; line-height: 1.6;">
+${body
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" style="color: #2563eb; text-decoration: underline; font-weight: bold;">$1</a>')
+  .replace(/\n/g, '<br/>')}
+</body>
+</html>`;
+
+  const headers = [
     'X-Unsent: 1',
+    'X-MSO-Draft: Yes',
+    `To: ${toHeader}`,
+  ];
+
+  if (ccHeader) {
+    headers.push(`Cc: ${ccHeader}`);
+  }
+
+  headers.push(
+    `Subject: ${subject}`,
     'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Type: text/html; charset=utf-8',
     'Content-Transfer-Encoding: 8bit',
     '',
-    body,
-  ].join('\r\n');
+    htmlBody
+  );
+
+  return headers.join('\r\n');
 }
 
 export function downloadBlobFile(filename: string, content: string, mimeType: string) {
