@@ -36,15 +36,17 @@ export function generateEMLContent(
   body: string,
   hostEmail?: string
 ): string {
-  const toHeader = recipients.join(', ');
+  const toHeader = recipients.join('; ');
   const fromHeader = hostEmail || 'organizer@meeting-scheduler.com';
 
   return [
     `From: ${fromHeader}`,
     `To: ${toHeader}`,
     `Subject: ${subject}`,
+    'X-Unsent: 1',
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
     '',
     body,
   ].join('\r\n');
