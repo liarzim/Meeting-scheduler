@@ -5,6 +5,7 @@ import type { Meeting } from '@/types';
 import type { ParticipantWithDetails } from './MeetingHeatmap';
 import { useLanguage } from '@/context/LanguageContext';
 import { addMeetingActivityLog } from '@/lib/meetingStore';
+import { generateICSContent, generateEMLContent, downloadBlobFile } from '@/lib/ical';
 
 interface SendReminderModalProps {
   isOpen: boolean;
@@ -379,21 +380,43 @@ ${cleanHostName}`;
           </div>
         )}
 
-        {/* Modal Actions */}
-        <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto px-5 py-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
-            {language === 'he' ? 'ביטול' : 'Cancel'}
-          </button>
+        {/* Footer Actions */}
+        <div className="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadICS}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition-all flex items-center gap-1.5"
+              title={language === 'he' ? 'הורד קובץ זימון (.ics) להפצה מכל חשבון מייל' : 'Download .ics calendar invite file'}
+            >
+              <span>📥</span>
+              <span>{language === 'he' ? 'הורד קובץ (.ics)' : 'Download (.ics)'}</span>
+            </button>
 
-          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleDownloadEML}
+              className="px-3 py-2 rounded-xl text-xs font-semibold bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5"
+              title={language === 'he' ? 'הורד קובץ מייל (.eml) מוכן למשלוח מכל תוכנה' : 'Download ready-made email (.eml) file'}
+            >
+              <span>✉️</span>
+              <span>{language === 'he' ? 'הורד מייל (.eml)' : 'Download (.eml)'}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-xl font-semibold text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            >
+              {language === 'he' ? 'ביטול' : 'Cancel'}
+            </button>
+
             <button
               type="button"
               onClick={handleCopyReminder}
-              className="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
+              className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700"
             >
               <span>📋</span>
               <span>{copied ? (language === 'he' ? 'הועתק!' : 'Copied!') : (language === 'he' ? 'העתק טקסט' : 'Copy Text')}</span>
@@ -402,7 +425,7 @@ ${cleanHostName}`;
             <button
               type="button"
               onClick={handleOpenEmailClient}
-              className="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-extrabold transition-all shadow-md shadow-amber-600/20 flex items-center justify-center gap-2 active:scale-95"
+              className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-extrabold transition-all shadow-md shadow-amber-600/20 flex items-center gap-2 active:scale-95"
             >
               <span>📧</span>
               <span>{language === 'he' ? `שלח תזכורת (${selectedList.length})` : `Send Reminder (${selectedList.length})`}</span>
