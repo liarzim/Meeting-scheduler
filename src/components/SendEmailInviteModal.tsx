@@ -117,7 +117,7 @@ ${cleanHostName}`;
 
     const mailtoUrl = `mailto:${encodeURIComponent(toStr)}?cc=${encodeURIComponent(ccStr)}&subject=${encodeURIComponent(subjectStr)}&body=${encodeURIComponent(bodyStr)}`;
 
-    window.location.href = mailtoUrl;
+    window.open(mailtoUrl, '_blank');
     onClose();
   };
 
