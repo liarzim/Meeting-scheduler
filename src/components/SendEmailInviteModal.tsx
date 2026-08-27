@@ -165,8 +165,8 @@ ${cleanHostName}`;
           <div className="flex gap-2">
             <input
               type="email"
-              value={inputEmail}
-              onChange={(e) => setInputEmail(e.target.value)}
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ';' || e.key === ',') {
                   e.preventDefault();
