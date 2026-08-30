@@ -103,7 +103,7 @@ ${cleanHostName}`;
         setSelectedEmails(allEm);
       }
     }
-  }, [isOpen, meetingTitle, shareableUrl, cleanHostName, descText, language, initialSelectedEmail, recipientParticipants]);
+  }, [isOpen]);
 
   if (!isOpen || !meeting) return null;
 

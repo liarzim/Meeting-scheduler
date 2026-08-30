@@ -7,7 +7,14 @@ import { useLanguage } from '@/context/LanguageContext';
 import { LanguageToggle } from './LanguageToggle';
 import { TimezoneSelector } from './TimezoneSelector';
 import { getWeekDates, formatDateShort } from '@/lib/timezone';
-import { updateParticipantSlots, getStoredMeetingData, normalizeKey, isParticipantDeleted, addMeetingActivityLog } from '@/lib/meetingStore';
+import {
+  updateParticipantSlots,
+  getStoredMeetingData,
+  normalizeKey,
+  isParticipantDeleted,
+  addMeetingActivityLog,
+  syncParticipantSlotsAcrossAllLocalMeetings,
+} from '@/lib/meetingStore';
 import { MeetingHeatmap, type ParticipantWithDetails } from './MeetingHeatmap';
 import { UserGuideModal } from './UserGuideModal';
 import { generateUUID } from '@/lib/uuid';
@@ -459,16 +466,17 @@ export function InviteeCalendar({
         const profileId = profResult?.id;
 
         if (profileId) {
-          // Look up or upsert participant with valid UUID
-          const { data: existingPart } = await (supabase.from('meeting_participants') as any)
-            .select('id')
-            .eq('meeting_id', activeMeetingId)
-            .eq('profile_id', profileId)
-            .maybeSingle();
+          // Fetch ALL meeting_participants records associated with this profileId in Supabase Cloud DB
+          const { data: allUserParticipants } = await (supabase.from('meeting_participants') as any)
+            .select('id, meeting_id')
+            .eq('profile_id', profileId);
 
-          let targetParticipantId = existingPart?.id;
+          const allParts: Array<{ id: string; meeting_id: string }> = allUserParticipants ? [...allUserParticipants] : [];
 
-          if (!targetParticipantId) {
+          // Ensure current meeting participant record exists
+          let currentTargetId = allParts.find((p) => p.meeting_id === activeMeetingId)?.id;
+
+          if (!currentTargetId) {
             const validPartUUID =
               participantId && participantId.length === 36 && !participantId.startsWith('part-')
                 ? participantId
@@ -489,25 +497,41 @@ export function InviteeCalendar({
               .select()
               .single();
 
-            targetParticipantId = newPart?.id || validPartUUID;
+            currentTargetId = newPart?.id || validPartUUID;
+            if (currentTargetId && !allParts.some((p) => p.id === currentTargetId)) {
+              allParts.push({ id: currentTargetId, meeting_id: activeMeetingId });
+            }
           }
 
-          if (targetParticipantId) {
-            // Delete previous slots for this participant to avoid duplicates
+          // Cross-Meeting Sync: Delete and insert new slots across ALL active meeting enrollments of this participant!
+          for (const part of allParts) {
+            if (!part.id) continue;
+
+            // Delete previous slots to avoid duplicates
             await (supabase.from('availability_slots') as any)
               .delete()
-              .eq('participant_id', targetParticipantId);
+              .eq('participant_id', part.id);
 
-            // Insert new slots with valid RFC4122 UUIDs
+            // Insert newly selected slots
             if (slotsToInsert.length > 0) {
               const dbPayload = slotsToInsert.map((s) => ({
                 id: generateUUID(),
-                participant_id: targetParticipantId,
+                participant_id: part.id,
                 start_time: s.start_time,
                 end_time: s.end_time,
               }));
 
               await (supabase.from('availability_slots') as any).insert(dbPayload);
+            }
+
+            // Log activity log entry for each meeting updated
+            if (part.meeting_id) {
+              addMeetingActivityLog(part.meeting_id, {
+                type: 'AVAILABILITY_UPDATED',
+                recipient_email: guestInfo.email,
+                recipient_name: guestInfo.name,
+                details: `סנכרון זמינות אוטומטי (${slotsToInsert.length} משבצות) לכל הפגישות הפעילות של המשתתף`,
+              });
             }
           }
         }
@@ -515,14 +539,9 @@ export function InviteeCalendar({
         console.warn('Supabase DB availability insert fallback:', dbErr);
       }
 
-      const targetKey = meetingId || meetingSlug || '';
-      if (targetKey) {
-        addMeetingActivityLog(targetKey, {
-          type: 'AVAILABILITY_UPDATED',
-          recipient_email: guestInfo.email,
-          recipient_name: guestInfo.name,
-          details: `דיווח/עדכן זמינות עבור ${slotsToInsert.length} משבצות זמן`,
-        });
+      // Also sync across local storage caches for all active meetings
+      if (guestInfo.email) {
+        syncParticipantSlotsAcrossAllLocalMeetings(guestInfo.email, slotsToInsert, guestInfo);
       }
 
       onSubmitted();

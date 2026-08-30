@@ -342,6 +342,55 @@ export function updateParticipantSlots(
   saveStoredMeetingData(normKey, current);
 }
 
+/**
+ * Cross-Meeting Availability Sync for Local Storage Cache
+ */
+export function syncParticipantSlotsAcrossAllLocalMeetings(
+  targetEmail: string,
+  newSlots: AvailabilitySlot[],
+  guestInfo: GuestInfo
+) {
+  if (typeof window === 'undefined' || !targetEmail) return;
+  try {
+    const rawMeetingsList = localStorage.getItem(MEETINGS_LIST_KEY);
+    if (!rawMeetingsList) return;
+    const meetingsList: Meeting[] = JSON.parse(rawMeetingsList);
+    const cleanEmail = targetEmail.trim().toLowerCase();
+
+    for (const m of meetingsList) {
+      const normKey = normalizeKey(m.id || m.slug || '');
+      if (!normKey) continue;
+
+      const participants = getStoredMeetingData(normKey) || [];
+      let updated = false;
+
+      const nextParticipants = participants.map((p) => {
+        if (p.profile?.email && p.profile.email.trim().toLowerCase() === cleanEmail) {
+          updated = true;
+          return {
+            ...p,
+            profile: {
+              ...p.profile,
+              full_name: guestInfo.name || p.profile.full_name,
+              email: guestInfo.email || p.profile.email,
+              company: guestInfo.company || p.profile.company || null,
+              phone_number: guestInfo.phone || p.profile.phone_number || null,
+            },
+            availability: newSlots,
+          };
+        }
+        return p;
+      });
+
+      if (updated) {
+        saveStoredMeetingData(normKey, nextParticipants);
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to sync participant slots across local meetings:', err);
+  }
+}
+
 // Compute top 3 available time slots (90%+)
 export function computeMeetingStats(participants: ParticipantWithDetails[]): {
   totalParticipants: number;
